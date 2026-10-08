@@ -19,7 +19,7 @@ const tag = (object, interactable) => {
   return object;
 };
 
-export const buildRoom = (screenMaterial) => {
+export const buildRoom = ({ screenMaterial, windowMaterial }) => {
   const room = new THREE.Group();
   room.name = 'Room';
 
@@ -249,11 +249,45 @@ export const buildRoom = (screenMaterial) => {
   clock.add(face, rim, hourPivot, minutePivot);
   room.add(clock);
 
-  // --- poster (back wall, right) ---
+  // --- window (back wall, right of the TV), rain shader on the glass ---
+
+  const windowGroup = tag(new THREE.Group(), 'window');
+  windowGroup.name = 'Window';
+  windowGroup.position.set(1.05, 1.45, -1.6);
+
+  const windowGlass = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 1.0), windowMaterial);
+  windowGlass.name = 'Window_Glass';
+  windowGlass.position.z = 0.005;
+  windowGroup.add(windowGlass);
+
+  const paint = mat(0xe6dccb, 0.6);
+  windowGroup.add(
+    box('Window_Frame_Top', 1.0, 0.05, 0.08, paint, 0, 0.525, 0.03),
+    box('Window_Frame_Bottom', 1.0, 0.05, 0.08, paint, 0, -0.525, 0.03),
+    box('Window_Frame_Left', 0.05, 1.1, 0.08, paint, -0.475, 0, 0.03),
+    box('Window_Frame_Right', 0.05, 1.1, 0.08, paint, 0.475, 0, 0.03),
+    box('Window_Mullion_V', 0.025, 1.0, 0.03, paint, 0, 0, 0.02),
+    box('Window_Mullion_H', 0.9, 0.025, 0.03, paint, 0, 0.1, 0.02),
+    box('Window_Sill', 1.12, 0.035, 0.16, paint, 0, -0.565, 0.08)
+  );
+
+  // a mug on the sill
+  const mug = tag(new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.032, 0.09, 20), mat(0xd9b44a, 0.4)), 'throwable');
+  mug.name = 'Mug';
+  mug.position.set(0.3, -0.5025, 0.08);
+  const handle = new THREE.Mesh(new THREE.TorusGeometry(0.022, 0.006, 8, 16), mug.material);
+  handle.position.x = 0.04;
+  mug.add(handle);
+  windowGroup.add(mug);
+
+  room.add(windowGroup);
+
+  // --- poster (left wall) ---
 
   const poster = tag(new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.85), mat(0x2b4a6b, 0.9)), 'poster');
   poster.name = 'Poster';
-  poster.position.set(1.1, 1.5, -1.595);
+  poster.position.set(-2.245, 1.5, 0.6);
+  poster.rotation.y = Math.PI / 2;
   room.add(poster);
 
   // --- light switch (left wall) ---
@@ -267,7 +301,7 @@ export const buildRoom = (screenMaterial) => {
   // --- shadows: everything casts and receives, except the self-lit screen ---
 
   room.traverse((child) => {
-    if (child.isMesh && child !== tvScreen) {
+    if (child.isMesh && child !== tvScreen && child !== windowGlass) {
       child.castShadow = true;
       child.receiveShadow = true;
     }
@@ -280,5 +314,5 @@ export const buildRoom = (screenMaterial) => {
     if (child.userData.interactable) interactables.push(child);
   });
 
-  return { room, tv, tvScreen, knob, lampLight, clock: { hourPivot, minutePivot }, interactables };
+  return { room, tv, tvScreen, windowGlass, knob, lampLight, clock: { hourPivot, minutePivot }, interactables };
 };

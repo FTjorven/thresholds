@@ -6,6 +6,7 @@ import starNestShader from './shaders/starNest/fragment.wgsl?raw';
 import seascapeShader from './shaders/seascape/fragment.wgsl?raw';
 import creationShader from './shaders/creation/fragment.wgsl?raw';
 import colorBarsShader from './shaders/colorBars/fragment.wgsl?raw';
+import heartfeltShader from './shaders/heartfelt/fragment.wgsl?raw';
 import crtShader from './shaders/crt/fragment.wgsl?raw';
 import { buildRoom } from './room.js';
 
@@ -89,10 +90,42 @@ screenMaterial.colorNode = colorSpaceToWorking(
   THREE.SRGBColorSpace
 );
 
+// --- rain shader on the window glass ---
+
+const windowResolution = uniform(new THREE.Vector2(900, 1000)); // same aspect as the glass (0.9 x 1.0 m)
+const windowTime = iTime.add(10); // skip the original's 10 second fade-in
+const windowMouse = uniform(new THREE.Vector2(0, 0));
+const windowMouseDown = uniform(0);
+
+const windowMaterial = new THREE.MeshBasicNodeMaterial();
+windowMaterial.colorNode = colorSpaceToWorking(
+  wgslFn(heartfeltShader)({
+    fragCoord: uv().mul(windowResolution),
+    iTime: windowTime,
+    iResolution: windowResolution,
+    iMouse: windowMouse,
+    mouseDown: windowMouseDown,
+  }),
+  THREE.SRGBColorSpace
+);
+
+// same lightning formula as the shader, so the room flashes in sync with the window
+const getLightning = (time) => {
+  const T = time + 10 + (windowMouse.value.x / windowResolution.value.x) * 2;
+  const t = (T + 3) * 0.5;
+  const flicker = Math.sin(t * Math.sin(t * 10));
+  return flicker * Math.pow(Math.max(0, Math.sin(t + Math.sin(t))), 10);
+};
+
 // --- placeholder room (replaced by the Blender model later) ---
 
-const { room, tvScreen, knob, clock } = buildRoom(screenMaterial);
+const { room, tvScreen, windowGlass, knob, clock } = buildRoom({ screenMaterial, windowMaterial });
 scene.add(room);
+
+// cold light from the window, flashes with the lightning
+const windowLight = new THREE.PointLight(0x7f9fd8, 0.5, 4, 2);
+windowLight.position.set(1.05, 1.4, -1.1);
+scene.add(windowLight);
 
 // soft blue glow from the screen onto the room
 const screenGlow = new THREE.PointLight(0x8fb4ff, 0.4, 3, 2);
@@ -104,7 +137,7 @@ scene.add(screenGlow);
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
 const mouseTarget = new THREE.Vector2(0, 0);
-let steering = false;
+let dragging = null; // 'screen' or 'window' while dragging on one of them
 
 const castFromEvent = (e, object) => {
   pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
@@ -116,6 +149,17 @@ const castFromEvent = (e, object) => {
 const steer = (hit) => {
   // hit.uv is 0..1 on the screen, Shadertoy expects pixels
   mouseTarget.set(hit.uv.x * rtResolution.value.x, hit.uv.y * rtResolution.value.y);
+};
+
+const setRain = (hit) => {
+  // drag up for more rain (the original uses iMouse.y for the rain amount)
+  windowMouse.value.set(hit.uv.x * windowResolution.value.x, hit.uv.y * windowResolution.value.y);
+  windowMouseDown.value = 1; // stays on: the rain keeps the amount you picked
+};
+
+const surfaces = {
+  screen: { object: tvScreen, onDrag: steer },
+  window: { object: windowGlass, onDrag: setRain },
 };
 
 const switchChannel = () => {
@@ -130,30 +174,34 @@ renderer.domElement.addEventListener('pointerdown', (e) => {
     switchChannel();
     return;
   }
-  const hit = castFromEvent(e, tvScreen);
-  if (hit) {
-    // drag on the screen steers the shader, drag elsewhere orbits
-    steering = true;
-    controls.enabled = false;
-    steer(hit);
+  // drag on the screen or window controls its shader, drag elsewhere orbits
+  for (const [name, { object, onDrag }] of Object.entries(surfaces)) {
+    const hit = castFromEvent(e, object);
+    if (hit) {
+      dragging = name;
+      controls.enabled = false;
+      onDrag(hit);
+      return;
+    }
   }
 });
 
 renderer.domElement.addEventListener('pointermove', (e) => {
   if (castFromEvent(e, knob)) {
     document.body.style.cursor = 'pointer';
-  } else if (steering || castFromEvent(e, tvScreen)) {
+  } else if (dragging || castFromEvent(e, tvScreen) || castFromEvent(e, windowGlass)) {
     document.body.style.cursor = 'crosshair';
   } else {
     document.body.style.cursor = '';
   }
-  if (!steering) return;
-  const hit = castFromEvent(e, tvScreen);
-  if (hit) steer(hit);
+  if (!dragging) return;
+  const { object, onDrag } = surfaces[dragging];
+  const hit = castFromEvent(e, object);
+  if (hit) onDrag(hit);
 });
 
 window.addEventListener('pointerup', () => {
-  steering = false;
+  dragging = null;
   controls.enabled = true;
 });
 
@@ -182,6 +230,8 @@ renderer.setAnimationLoop(() => {
 
   glitch.value *= Math.exp(-delta * 3);
   staticAmount.value *= Math.exp(-delta * 5);
+
+  windowLight.intensity = 0.5 + Math.max(0, getLightning(iTime.value)) * 8;
 
   controls.update();
 

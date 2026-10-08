@@ -26,7 +26,7 @@ fn seascape(fragCoord: vec2f, iTime: f32, iResolution: vec2f, iMouse: vec2f) -> 
   let light = normalize(vec3f(0.0, 1.0, 0.8));
 
   // color
-  // smoothstep(0.0, -0.05, x) has its edges reversed, which WGSL doesn't allow: 1 - smoothstep(-0.05, 0.0, x) is the same curve
+  // smoothstep(0.0, -0.05, x) has its edges reversed, which isn't guaranteed to work in WGSL: 1 - smoothstep(-0.05, 0.0, x) is the same curve
   let color = mix(
     seaGetSkyColor(dir),
     seaGetSeaColor(p, n, light, dir, dist),

@@ -364,7 +364,7 @@ Mesh names are the names to use in Blender (`TV_Screen`, `TV_Knob`, `VCR`, `Remo
 Interactables are tagged with `userData.interactable` and collected in `interactables` (not wired up yet, except the channel knob).
 
 Layout: back wall with the TV on an open cabinet (VCR + tapes on the bottom shelf), floor lamp left corner, plant right corner,
-clock + poster on the back wall, light switch on the left wall, coffee table + rug in front, wastebasket next to the table.
+clock + rainy window (with a mug on the sill) on the back wall, poster + light switch on the left wall, coffee table + rug in front, wastebasket next to the table.
 
 | Object | Tag | Interaction idea | Extra marks |
 | --- | --- | --- | --- |
@@ -377,6 +377,7 @@ clock + poster on the back wall, light switch on the left wall, coffee table + r
 | Floor lamp | `lamp` | Click: toggle. Room goes dark, the TV becomes the only light | Interaction |
 | Light switch | `lightSwitch` | Same as the lamp but for the whole room: swap between a "day" and "night" bake | Blender baking (two bakes) |
 | Wall clock | `clock` | ✅ Shows the real time. Idea: drag the minute hand to scrub `iTime` (rewind the flight) | Interaction |
+| Window | `window` | ✅ Heartfelt rain shader on the glass. Drag up/down = rain amount. Lightning flashes a light in the room | Multiple shaders, Interaction |
 | Poster | `poster` | Another shader as the poster image (e.g. a small TSL pattern) that reacts to the channel | Multiple shaders |
 | Plant | `plant` | Dynamic physics body: knock it over with a thrown ball | Physics |
 
