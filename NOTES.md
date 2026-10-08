@@ -54,7 +54,7 @@ Channel shaders (on the TV):
   Volumetric starfield, single pass, already uses `iMouse`. **Easiest port, do this one first.**
 - **Fractal Land** by Kali: https://www.shadertoy.com/view/XsBXWt
   Flight over a fractal landscape, single pass.
-- **Seascape** by TDM: https://www.shadertoy.com/view/Ms2SzD
+- **Seascape** by TDM: https://www.shadertoy.com/view/Ms2SD1 (the ID was wrong here before: Ms2SzD)
   Raymarched ocean, mouse-controllable, single pass. Longer code.
 - **Protean Clouds** by nimitz: https://www.shadertoy.com/view/3l23Rh
   Cloud fly-through, single pass, mouse reactive.

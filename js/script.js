@@ -3,6 +3,9 @@ import { wgslFn, uniform, uv, vec2, texture, colorSpaceToWorking } from 'three/t
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 import starNestShader from './shaders/starNest/fragment.wgsl?raw';
+import seascapeShader from './shaders/seascape/fragment.wgsl?raw';
+import creationShader from './shaders/creation/fragment.wgsl?raw';
+import colorBarsShader from './shaders/colorBars/fragment.wgsl?raw';
 import crtShader from './shaders/crt/fragment.wgsl?raw';
 import { buildRoom } from './room.js';
 
@@ -55,9 +58,9 @@ const renderTarget = new THREE.RenderTarget(rtResolution.value.x, rtResolution.v
 
 // Shadertoy has its origin bottom-left, the render target top-left: flip y
 const channelFragCoord = vec2(uv().x, uv().y.oneMinus()).mul(rtResolution);
-const channels = [
-  wgslFn(starNestShader)({ fragCoord: channelFragCoord, iTime, iResolution: rtResolution, iMouse }),
-].map((node) => {
+// every channel has the same inputs, so the knob can cycle through them
+const channels = [starNestShader, seascapeShader, creationShader, colorBarsShader].map((shader) => {
+  const node = wgslFn(shader)({ fragCoord: channelFragCoord, iTime, iResolution: rtResolution, iMouse });
   const material = new THREE.MeshBasicNodeMaterial();
   material.colorNode = node;
   return material;
