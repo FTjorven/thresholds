@@ -1,0 +1,39 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  overflow: hidden;
+  background: #1a1512;
+  color: #e8dccb;
+  font-family: system-ui, sans-serif;
+}
+
+canvas {
+  display: block;
+  touch-action: none;
+}
+
+.hint,
+.no-webgpu {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0.5rem 1rem;
+  font-size: 0.85rem;
+  text-align: center;
+  pointer-events: none;
+}
+
+.hint {
+  bottom: 1rem;
+  opacity: 0.6;
+}
+
+.no-webgpu {
+  top: 50%;
+  font-size: 1.1rem;
+}
