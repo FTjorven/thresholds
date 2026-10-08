@@ -94,8 +94,6 @@ screenMaterial.colorNode = colorSpaceToWorking(
 
 const windowResolution = uniform(new THREE.Vector2(900, 1000)); // same aspect as the glass (0.9 x 1.0 m)
 const windowTime = iTime.add(10); // skip the original's 10 second fade-in
-const windowMouse = uniform(new THREE.Vector2(0, 0));
-const windowMouseDown = uniform(0);
 
 const windowMaterial = new THREE.MeshBasicNodeMaterial();
 windowMaterial.colorNode = colorSpaceToWorking(
@@ -103,15 +101,13 @@ windowMaterial.colorNode = colorSpaceToWorking(
     fragCoord: uv().mul(windowResolution),
     iTime: windowTime,
     iResolution: windowResolution,
-    iMouse: windowMouse,
-    mouseDown: windowMouseDown,
   }),
   THREE.SRGBColorSpace
 );
 
 // same lightning formula as the shader, so the room flashes in sync with the window
 const getLightning = (time) => {
-  const T = time + 10 + (windowMouse.value.x / windowResolution.value.x) * 2;
+  const T = time + 10;
   const t = (T + 3) * 0.5;
   const flicker = Math.sin(t * Math.sin(t * 10));
   return flicker * Math.pow(Math.max(0, Math.sin(t + Math.sin(t))), 10);
@@ -119,7 +115,7 @@ const getLightning = (time) => {
 
 // --- placeholder room (replaced by the Blender model later) ---
 
-const { room, tvScreen, windowGlass, knob, clock } = buildRoom({ screenMaterial, windowMaterial });
+const { room, tvScreen, knob, clock } = buildRoom({ screenMaterial, windowMaterial });
 scene.add(room);
 
 // cold light from the window, flashes with the lightning
@@ -151,15 +147,8 @@ const steer = (hit) => {
   mouseTarget.set(hit.uv.x * rtResolution.value.x, hit.uv.y * rtResolution.value.y);
 };
 
-const setRain = (hit) => {
-  // drag up for more rain (the original uses iMouse.y for the rain amount)
-  windowMouse.value.set(hit.uv.x * windowResolution.value.x, hit.uv.y * windowResolution.value.y);
-  windowMouseDown.value = 1; // stays on: the rain keeps the amount you picked
-};
-
 const surfaces = {
   screen: { object: tvScreen, onDrag: steer },
-  window: { object: windowGlass, onDrag: setRain },
 };
 
 const switchChannel = () => {
@@ -174,7 +163,7 @@ renderer.domElement.addEventListener('pointerdown', (e) => {
     switchChannel();
     return;
   }
-  // drag on the screen or window controls its shader, drag elsewhere orbits
+  // drag on the screen controls its shader, drag elsewhere orbits
   for (const [name, { object, onDrag }] of Object.entries(surfaces)) {
     const hit = castFromEvent(e, object);
     if (hit) {
@@ -189,7 +178,7 @@ renderer.domElement.addEventListener('pointerdown', (e) => {
 renderer.domElement.addEventListener('pointermove', (e) => {
   if (castFromEvent(e, knob)) {
     document.body.style.cursor = 'pointer';
-  } else if (dragging || castFromEvent(e, tvScreen) || castFromEvent(e, windowGlass)) {
+  } else if (dragging || castFromEvent(e, tvScreen)) {
     document.body.style.cursor = 'crosshair';
   } else {
     document.body.style.cursor = '';

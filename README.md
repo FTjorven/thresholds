@@ -23,7 +23,7 @@ The CRT layer (barrel distortion, scanlines, chromatic aberration, noise, static
 
 - Drag on the TV screen to control the channel (raycast → screen UV → `iMouse`): steer through the stars, move along the sea, move the center of Creation, shift the hue of the color bars
 - Click the channel knob to switch channel (burst of static)
-- Drag up/down on the window for more/less rain; lightning in the shader also lights up the room
+- The rain on the window comes and goes by itself; lightning in the shader also lights up the room
 - Drag anywhere else to orbit around the TV
 - `G` triggers a glitch (temporary, until physics hits drive it)
 

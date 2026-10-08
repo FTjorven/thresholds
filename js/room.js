@@ -251,7 +251,7 @@ export const buildRoom = ({ screenMaterial, windowMaterial }) => {
 
   // --- window (back wall, right of the TV), rain shader on the glass ---
 
-  const windowGroup = tag(new THREE.Group(), 'window');
+  const windowGroup = new THREE.Group();
   windowGroup.name = 'Window';
   windowGroup.position.set(1.05, 1.45, -1.6);
 
@@ -314,5 +314,5 @@ export const buildRoom = ({ screenMaterial, windowMaterial }) => {
     if (child.userData.interactable) interactables.push(child);
   });
 
-  return { room, tv, tvScreen, windowGlass, knob, lampLight, clock: { hourPivot, minutePivot }, interactables };
+  return { room, tv, tvScreen, knob, lampLight, clock: { hourPivot, minutePivot }, interactables };
 };

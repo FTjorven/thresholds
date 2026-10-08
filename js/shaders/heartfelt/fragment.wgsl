@@ -5,17 +5,16 @@
 // - the version without the heart (HAS_HEART off): endless rain instead of the 100 second story
 // - iChannel0 (a photo, blurred with textureLod) is replaced by hfView(): a procedural night street,
 //   blurred by growing its lights the same amount a mip level would
-// - mouseDown replaces iMouse.z
+// - no mouse input: the rain amount always follows the original's automatic rhythm
 // - left out a droplets calculation in DropLayer2 that the original overwrites right away (no visual change)
 
-fn heartfelt(fragCoord: vec2f, iTime: f32, iResolution: vec2f, iMouse: vec2f, mouseDown: f32) -> vec4f {
+fn heartfelt(fragCoord: vec2f, iTime: f32, iResolution: vec2f) -> vec4f {
   var uv = (fragCoord - 0.5 * iResolution) / iResolution.y;
   var UV = fragCoord / iResolution;
-  let M = iMouse / iResolution;
-  let T = iTime + M.x * 2.0;
+  let T = iTime;
   var t = T * 0.2;
 
-  let rainAmount = select(sin(T * 0.05) * 0.3 + 0.7, M.y, mouseDown > 0.0);
+  let rainAmount = sin(T * 0.05) * 0.3 + 0.7;
 
   let maxBlur = mix(3.0, 6.0, rainAmount);
   let minBlur = 2.0;

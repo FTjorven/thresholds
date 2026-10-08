@@ -377,7 +377,7 @@ clock + rainy window (with a mug on the sill) on the back wall, poster + light s
 | Floor lamp | `lamp` | Click: toggle. Room goes dark, the TV becomes the only light | Interaction |
 | Light switch | `lightSwitch` | Same as the lamp but for the whole room: swap between a "day" and "night" bake | Blender baking (two bakes) |
 | Wall clock | `clock` | ✅ Shows the real time. Idea: drag the minute hand to scrub `iTime` (rewind the flight) | Interaction |
-| Window | `window` | ✅ Heartfelt rain shader on the glass. Drag up/down = rain amount. Lightning flashes a light in the room | Multiple shaders, Interaction |
+| Window | (none, ambience) | ✅ Heartfelt rain shader on the glass, rain comes and goes by itself. Lightning flashes a light in the room | Multiple shaders |
 | Poster | `poster` | Another shader as the poster image (e.g. a small TSL pattern) that reacts to the channel | Multiple shaders |
 | Plant | `plant` | Dynamic physics body: knock it over with a thrown ball | Physics |
 
