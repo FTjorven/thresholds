@@ -4,6 +4,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 import starNestShader from './shaders/starNest/fragment.wgsl?raw';
 import crtShader from './shaders/crt/fragment.wgsl?raw';
+import { buildRoom } from './room.js';
 
 if (!navigator.gpu) {
   document.querySelector('.no-webgpu').hidden = false;
@@ -15,25 +16,27 @@ if (!navigator.gpu) {
 const renderer = new THREE.WebGPURenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
 document.body.appendChild(renderer.domElement);
 await renderer.init();
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x1a1512);
 
-const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
-camera.position.set(0, 0.4, 3.2);
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.05, 50);
+camera.position.set(0.4, 1.2, 1.9);
 
+// stay inside the room: no going under the floor or through the side walls
 const controls = new OrbitControls(camera, renderer.domElement);
-controls.target.set(0, 0, 0);
+controls.target.set(0, 0.75, -1.1);
 controls.enableDamping = true;
-controls.minDistance = 1.5;
-controls.maxDistance = 6;
+controls.minDistance = 0.5;
+controls.maxDistance = 3.3;
+controls.maxPolarAngle = Math.PI / 2 - 0.05;
+controls.minAzimuthAngle = -0.7;
+controls.maxAzimuthAngle = 0.7;
 
-scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-const lamp = new THREE.PointLight(0xffd8a8, 20);
-lamp.position.set(1.5, 2, 2);
-scene.add(lamp);
+scene.add(new THREE.AmbientLight(0xfff0e0, 0.25));
 
 // --- uniforms ---
 
@@ -83,27 +86,15 @@ screenMaterial.colorNode = colorSpaceToWorking(
   THREE.SRGBColorSpace
 );
 
-// --- placeholder TV (replaced by the Blender model later) ---
+// --- placeholder room (replaced by the Blender model later) ---
 
-const tv = new THREE.Group();
-scene.add(tv);
+const { room, tvScreen, knob, clock } = buildRoom(screenMaterial);
+scene.add(room);
 
-const caseMaterial = new THREE.MeshStandardMaterial({ color: 0x6b4a2f, roughness: 0.6 });
-const tvCase = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.3, 1.2), caseMaterial);
-tvCase.position.z = -0.6;
-tv.add(tvCase);
-
-const tvScreen = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.9), screenMaterial);
-tvScreen.position.set(-0.2, 0, 0.001);
-tv.add(tvScreen);
-
-const knob = new THREE.Mesh(
-  new THREE.CylinderGeometry(0.09, 0.09, 0.08, 24),
-  new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.4 })
-);
-knob.rotation.x = Math.PI / 2;
-knob.position.set(0.65, 0.2, 0.04);
-tv.add(knob);
+// soft blue glow from the screen onto the room
+const screenGlow = new THREE.PointLight(0x8fb4ff, 0.4, 3, 2);
+screenGlow.position.set(-0.18, 0.8, -0.7);
+scene.add(screenGlow);
 
 // --- interaction ---
 
@@ -190,6 +181,12 @@ renderer.setAnimationLoop(() => {
   staticAmount.value *= Math.exp(-delta * 5);
 
   controls.update();
+
+  // the wall clock shows the real time
+  const now = new Date();
+  const minutes = now.getMinutes() + now.getSeconds() / 60;
+  clock.minutePivot.rotation.z = -(minutes / 60) * Math.PI * 2;
+  clock.hourPivot.rotation.z = -(((now.getHours() % 12) + minutes / 60) / 12) * Math.PI * 2;
 
   renderer.setRenderTarget(renderTarget);
   renderer.render(rtScene, rtCamera);

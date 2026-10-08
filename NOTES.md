@@ -354,3 +354,32 @@ Built with: Three.js WebGPURenderer, TSL/WGSL, Rapier, Blender (baked)
 8. [ ] Rapier: throwable objects, hits → glitch. **Deploy.**
 9. [ ] Optional: TSL compute sparks on impact (extra WebGPU points).
 10. [ ] README with shader URLs, final check of the live URL, submit URL + source (no node_modules).
+
+---
+
+## 9. Placeholder room + interactables
+
+`js/room.js` builds a placeholder room from primitives, in meters (floor at y = 0), so physics sizes are realistic.
+Mesh names are the names to use in Blender (`TV_Screen`, `TV_Knob`, `VCR`, `Remote`, ...), so the GLB can replace it 1:1.
+Interactables are tagged with `userData.interactable` and collected in `interactables` (not wired up yet, except the channel knob).
+
+Layout: back wall with the TV on an open cabinet (VCR + tapes on the bottom shelf), floor lamp left corner, plant right corner,
+clock + poster on the back wall, light switch on the left wall, coffee table + rug in front, wastebasket next to the table.
+
+| Object | Tag | Interaction idea | Extra marks |
+| --- | --- | --- | --- |
+| Channel knob | `channelKnob` | ✅ Click: next channel + static. Later: Blender `KnobTurn` animation | Blender animation |
+| Volume knob | `volumeKnob` | Drag to rotate: controls a shader param (CRT warp/saturation) or real audio volume | Interaction |
+| Rabbit-ear antenna | `antenna` | Drag the ears: signal quality. Bad angle = more `staticAmount`, perfect angle = clean picture | Interaction, Blender animation |
+| Remote | `remote` | Pick up: buttons switch channels from the couch. Or throw it at the TV | Physics |
+| Paper balls + soda can | `throwable` | Click + flick to throw (Rapier). Hits on the TV spike `glitch`. Wastebasket = ammo (respawns) | Physics |
+| Tapes + VCR | `tape`, `vcr` | Drag a tape into the VCR slot: plays a "recorded" channel (different shader, VHS tracking lines stronger). Eject button | Multiple shaders, Blender animation (tape sliding in) |
+| Floor lamp | `lamp` | Click: toggle. Room goes dark, the TV becomes the only light | Interaction |
+| Light switch | `lightSwitch` | Same as the lamp but for the whole room: swap between a "day" and "night" bake | Blender baking (two bakes) |
+| Wall clock | `clock` | ✅ Shows the real time. Idea: drag the minute hand to scrub `iTime` (rewind the flight) | Interaction |
+| Poster | `poster` | Another shader as the poster image (e.g. a small TSL pattern) that reacts to the channel | Multiple shaders |
+| Plant | `plant` | Dynamic physics body: knock it over with a thrown ball | Physics |
+
+Fun extra: smack the side of the TV (click the case) to "fix" the picture: clears static, like a real old TV.
+
+Suggested order: throwables + glitch (physics) → antenna (static) → tapes/VCR (second shader) → lamp/light switch (baking).
