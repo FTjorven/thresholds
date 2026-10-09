@@ -133,7 +133,7 @@ scene.add(screenGlow);
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
 const mouseTarget = new THREE.Vector2(0, 0);
-let dragging = null; // 'screen' or 'window' while dragging on one of them
+let dragging = null; // name of the surface being dragged on (see surfaces below)
 
 const castFromEvent = (e, object) => {
   pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
