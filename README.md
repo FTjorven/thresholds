@@ -1,38 +1,38 @@
-# CRT TV
+# Thresholds
 
-A Shadertoy shader ported to WebGPU (WGSL), playing on an old CRT television in a Three.js scene rendered with `WebGPURenderer`.
+A first-person walk through Shadertoy worlds, built with Three.js `WebGPURenderer` and WGSL.
+
+You stand on a floating ruin in a void. Its stone archways are doorways into other worlds: each one is a Shadertoy shader, ported to WGSL. The shader doesn't sit on the doorway as a flat picture. It gets the real ray from your eye, so the world behind the doorway has depth and shifts as you move.
 
 Live: _TODO: add the deployed URL_
 
 ## Original shaders
 
-The TV has four channels, switched with the channel knob:
+- Star Nest by Kali (Pablo Roman Andrioli): https://www.shadertoy.com/view/XlfGRj
+  - `js/shaders/starNest/fragment.wgsl`: straight port of the original
+  - `js/shaders/starNest/world.wgsl`: the same shader, with the camera ray from the 3D scene instead of from the pixel position
 
-1. Star Nest by Kali (Pablo Roman Andrioli): https://www.shadertoy.com/view/XlfGRj
-2. Seascape by Alexander Alekseev (TDM): https://www.shadertoy.com/view/Ms2SD1 (ported from the 2014 version)
-3. Creation by Silexars (Danilo Guanabara): https://www.shadertoy.com/view/XsXXDn (changed: the center follows the mouse)
-4. Color bars test card: own shader
+Ported and ready for the next worlds:
 
-On the window:
+- Seascape by Alexander Alekseev (TDM): https://www.shadertoy.com/view/Ms2SD1 (ported from the 2014 version)
+- Creation by Silexars (Danilo Guanabara): https://www.shadertoy.com/view/XsXXDn
+- Heartfelt by Martijn Steinrucken (BigWings): https://www.shadertoy.com/view/ltffzl
 
-- Heartfelt by Martijn Steinrucken (BigWings): https://www.shadertoy.com/view/ltffzl (the version without the heart; the photo it blurs behind the glass is replaced by our own procedural night street)
+## Controls
 
-The CRT layer (barrel distortion, scanlines, chromatic aberration, noise, static) is written from scratch in `js/shaders/crt/fragment.wgsl`.
-
-## Interaction
-
-- Drag on the TV screen to control the channel (raycast → screen UV → `iMouse`): steer through the stars, move along the sea, move the center of Creation, shift the hue of the color bars
-- Click the channel knob to switch channel (burst of static)
-- The rain on the window comes and goes by itself; lightning in the shader also lights up the room
-- Drag anywhere else to orbit around the TV
-- `G` triggers a glitch (temporary, until physics hits drive it)
+- Click to enter (locks the mouse)
+- Mouse: look around
+- WASD / arrow keys: walk, Shift: run, Space: jump
+- Esc: pause
 
 ## How it works
 
-1. The current channel shader renders into a 320×240 render target.
-2. The CRT shader samples that render target as `iChannel0` on the TV screen mesh.
+Every pixel of a doorway runs the shader with:
 
-Both shaders are WGSL functions loaded with `wgslFn` from Three.js TSL.
+- `rayOrigin`: the point on the doorway this pixel shows (`positionWorld`)
+- `rayDir`: the direction from the camera through that point (`positionWorld - cameraPosition`)
+
+So walking around the doorway changes the rays, which is the user interaction that drives the shader.
 
 ## Run locally
 
@@ -41,7 +41,7 @@ npm install
 npm run dev
 ```
 
-Needs a browser with WebGPU (recent Chrome, Edge or Safari).
+Needs a browser with WebGPU (recent Chrome, Edge or Safari on desktop).
 
 ## Built with
 
