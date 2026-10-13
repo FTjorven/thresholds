@@ -8,14 +8,14 @@ Live: _TODO: add the deployed URL_
 
 ## Original shaders
 
-- Star Nest by Kali (Pablo Roman Andrioli): https://www.shadertoy.com/view/XlfGRj
-  - `js/shaders/starNest/fragment.wgsl`: straight port of the original
-  - `js/shaders/starNest/world.wgsl`: the same shader, with the camera ray from the 3D scene instead of from the pixel position
+One world behind each archway. For each shader, `fragment.wgsl` is the straight port and `world.wgsl` the version that takes its ray from the 3D scene:
 
-Ported and ready for the next worlds:
+- Star Nest by Kali (Pablo Roman Andrioli): https://www.shadertoy.com/view/XlfGRj: a nebula to float through
+- Seascape by Alexander Alekseev (TDM): https://www.shadertoy.com/view/Ms2SD1 (ported from the 2014 version): an open sea to skim over. The world version includes the straight port and reuses all its functions
+- Creation by Silexars (Danilo Guanabara): https://www.shadertoy.com/view/XsXXDn: the 2D original becomes a giant pulsing light far away, mapped onto the directions around you (stereographic projection). Fly towards it and it grows around you
 
-- Seascape by Alexander Alekseev (TDM): https://www.shadertoy.com/view/Ms2SD1 (ported from the 2014 version)
-- Creation by Silexars (Danilo Guanabara): https://www.shadertoy.com/view/XsXXDn
+Ported, not used yet:
+
 - Heartfelt by Martijn Steinrucken (BigWings): https://www.shadertoy.com/view/ltffzl
 
 ## Controls
@@ -23,7 +23,7 @@ Ported and ready for the next worlds:
 - Click to enter (locks the mouse)
 - Mouse: look around
 - WASD / arrow keys: walk, Shift: run, Space: jump
-- Walk through the open archway to enter its world. Inside you're weightless: fly where you look, Space to rise, Shift to go faster. The archway leads back.
+- Walk through an archway to enter its world. Inside you're weightless: fly where you look, Space to rise, Shift to go faster. The archway leads back.
 - Esc: pause
 
 ## How it works

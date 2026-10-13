@@ -1,7 +1,11 @@
 import * as THREE from 'three/webgpu';
-import { wgslFn, uniform, cameraPosition, positionWorld, screenUV, texture, colorSpaceToWorking } from 'three/tsl';
+import { wgslFn, wgsl, uniform, cameraPosition, positionWorld, screenUV, texture, colorSpaceToWorking } from 'three/tsl';
 
 import starNestWorldShader from './shaders/starNest/world.wgsl?raw';
+import seascapeShader from './shaders/seascape/fragment.wgsl?raw';
+import seascapeWorldShader from './shaders/seascape/world.wgsl?raw';
+import creationShader from './shaders/creation/fragment.wgsl?raw';
+import creationWorldShader from './shaders/creation/world.wgsl?raw';
 import { buildRuin, isInOpening } from './ruin.js';
 import { createPlayer } from './player.js';
 import { createDoorway } from './doorway.js';
@@ -48,20 +52,48 @@ scene.add(moon);
 // --- uniforms ---
 
 const iTime = uniform(0);
+const creationLight = uniform(new THREE.Vector3()); // where Creation's light hangs, set once the ruin is built
 
-// --- shader worlds ---
+// --- the worlds, one behind each archway ---
+// includes: the straight port of the shader, so the world version can reuse its functions
+// lowest: lowest flying height inside (stay above the sea)
+
+const worlds = [
+  {
+    title: 'Star Nest · Kali',
+    shader: starNestWorldShader,
+    includes: [],
+    glow: 0x9fb4ff,
+  },
+  {
+    title: 'Seascape · TDM',
+    shader: seascapeWorldShader,
+    includes: [seascapeShader],
+    glow: 0xcfe8ff,
+    lowest: 0.1,
+  },
+  {
+    title: 'Creation · Silexars',
+    shader: creationWorldShader,
+    includes: [creationShader],
+    glow: 0xffd2b8,
+    inputs: { lightPosition: creationLight },
+  },
+];
+
 // The shader gets a real ray from your eye instead of a pixel position:
 // - seen through a doorway, the ray starts where it passes through the doorway
 // - inside the world, the ray starts at your eye
 // Either way the world has depth, and moving around changes what you see.
-
-const createWorldMaterial = (shader, rayOrigin) => {
+const createWorldMaterial = (world, rayOrigin) => {
   const material = new THREE.MeshBasicNodeMaterial();
+  const shader = wgslFn(world.shader, world.includes.map((code) => wgsl(code)));
   material.colorNode = colorSpaceToWorking(
-    wgslFn(shader)({
+    shader({
       rayOrigin,
       rayDir: positionWorld.sub(cameraPosition).normalize(),
       iTime,
+      ...world.inputs,
     }),
     THREE.SRGBColorSpace
   );
@@ -69,13 +101,15 @@ const createWorldMaterial = (shader, rayOrigin) => {
   return material;
 };
 
-const starNestDoorway = createWorldMaterial(starNestWorldShader, positionWorld);
+for (const world of worlds) {
+  world.doorwayMaterial = createWorldMaterial(world, positionWorld);
+  world.insideMaterial = createWorldMaterial(world, cameraPosition);
+  world.insideMaterial.side = THREE.BackSide;
+  world.insideMaterial.depthWrite = false;
+}
 
 // inside: a big sphere around you, painted from the inside, always drawn behind everything
-const starNestInside = createWorldMaterial(starNestWorldShader, cameraPosition);
-starNestInside.side = THREE.BackSide;
-starNestInside.depthWrite = false;
-const worldSphere = new THREE.Mesh(new THREE.SphereGeometry(50, 32, 16), starNestInside);
+const worldSphere = new THREE.Mesh(new THREE.SphereGeometry(50, 32, 16), worlds[0].insideMaterial);
 worldSphere.frustumCulled = false;
 worldSphere.renderOrder = -1;
 worldSphere.visible = false;
@@ -100,25 +134,34 @@ resizeRuinTarget();
 
 // --- the ruin (placeholder, replaced by the Blender model later) ---
 
-const { ruin, arches, isGround, animate } = buildRuin({ portalMaterial: starNestDoorway });
+const { ruin, arches, isGround, animate } = buildRuin({
+  portalMaterials: worlds.map((world) => world.doorwayMaterial),
+});
 scene.add(ruin);
 
-const openArch = arches.find(({ open }) => open);
-scene.attach(openArch.arch); // keep it out of the ruin group: it stays visible inside the world
+// connect each world to its archway
+worlds.forEach((world, i) => {
+  const { arch, opening } = arches[i];
+  scene.attach(arch); // out of the ruin group: the archway you came through stays visible inside
+  world.arch = arch;
+  world.opening = opening;
+  world.doorway = createDoorway({ arch, isInOpening });
 
-// the open doorway lights up the stone around it
-const glow = new THREE.PointLight(0x9fb4ff, 4, 7, 2);
-glow.position.set(0, 1.6, 0.6);
-openArch.arch.add(glow);
+  // the open doorway lights up the stone around it, in the color of its world
+  const glow = new THREE.PointLight(world.glow, 4, 7, 2);
+  glow.position.set(0, 1.6, 0.6);
+  arch.add(glow);
+});
 
-const doorway = createDoorway({ arch: openArch.arch, isInOpening });
+// Creation's light hangs 30 m behind its archway, at eye height
+worlds[2].arch.localToWorld(creationLight.value.set(0, 1.6, -30));
 
 // --- player ---
 
 const player = createPlayer({
   camera,
   domElement: renderer.domElement,
-  spawn: new THREE.Vector3(0, 0, 2.5),
+  spawn: new THREE.Vector3(0, 0, 0.8), // on the dais, facing the first archway
   isGround,
 });
 
@@ -134,13 +177,14 @@ player.controls.addEventListener('unlock', () => {
   startScreen.querySelector('.start-title').textContent = 'Paused';
 });
 
-// --- going in and out of the world ---
+// --- going in and out of the worlds ---
 
-let inside = false;
+let current = null; // the world you're in, or null on the ruin
 let fovKick = 0;
 const flash = document.querySelector('.flash');
 const hint = document.querySelector('.hint');
-let hintShown = false;
+let hintTimeout = null;
+let controlsExplained = false;
 
 const playCrossingEffect = () => {
   // restart the CSS flash animation
@@ -153,24 +197,32 @@ const playCrossingEffect = () => {
 const showHint = (text) => {
   hint.textContent = text;
   hint.classList.add('visible');
-  setTimeout(() => hint.classList.remove('visible'), 5000);
+  clearTimeout(hintTimeout);
+  hintTimeout = setTimeout(() => hint.classList.remove('visible'), 5000);
 };
 
-const enterWorld = () => {
-  inside = true;
-  openArch.opening.material = ruinView;
+const enterWorld = (world) => {
+  current = world;
+  world.opening.material = ruinView;
+  worldSphere.material = world.insideMaterial;
   worldSphere.visible = true;
-  player.setFlying(true, doorway.getCenter(new THREE.Vector3()));
+  player.setFlying(true, {
+    homePosition: world.doorway.getCenter(new THREE.Vector3()),
+    lowest: world.lowest,
+  });
   playCrossingEffect();
-  if (!hintShown) {
-    hintShown = true;
-    showHint('Weightless. Fly where you look · Space to rise · the doorway leads back');
+  // the world's name (and its author), plus the controls the first time
+  let text = world.title;
+  if (!controlsExplained) {
+    controlsExplained = true;
+    text += '\nWeightless. Fly where you look · Space to rise · the doorway leads back';
   }
+  showHint(text);
 };
 
 const exitWorld = () => {
-  inside = false;
-  openArch.opening.material = starNestDoorway;
+  current.opening.material = current.doorwayMaterial;
+  current = null;
   worldSphere.visible = false;
   player.setFlying(false);
   playCrossingEffect();
@@ -195,18 +247,25 @@ renderer.setAnimationLoop(() => {
   player.update(delta);
   animate(iTime.value);
 
-  const crossing = doorway.update(camera.position, inside);
-  if (crossing === 'enter') enterWorld();
-  if (crossing === 'exit') exitWorld();
+  // every doorway keeps track of which side you're on, even the ones that don't matter right now
+  let entered = null;
+  let exited = false;
+  for (const world of worlds) {
+    const crossing = world.doorway.update(camera.position, world === current);
+    if (crossing === 'enter' && !current) entered = world;
+    if (crossing === 'exit' && world === current) exited = true;
+  }
+  if (exited) exitWorld();
+  else if (entered) enterWorld(entered);
 
   fovKick *= Math.exp(-delta * 4);
   camera.fov = FOV + fovKick;
   camera.updateProjectionMatrix();
 
-  if (inside) {
+  if (current) {
     // 1. the ruin as seen from here, for the view back through the doorway
     worldSphere.visible = false;
-    openArch.opening.visible = false;
+    current.opening.visible = false;
     scene.fog = voidFog;
     renderer.setRenderTarget(ruinTarget);
     renderer.render(scene, camera);
@@ -214,12 +273,14 @@ renderer.setAnimationLoop(() => {
 
     // 2. the world around you: only the archway you came through is left
     ruin.visible = false;
+    for (const world of worlds) world.arch.visible = world === current;
     worldSphere.position.copy(camera.position);
     worldSphere.visible = true;
-    openArch.opening.visible = true;
+    current.opening.visible = true;
     scene.fog = null;
     renderer.render(scene, camera);
     ruin.visible = true;
+    for (const world of worlds) world.arch.visible = true;
   } else {
     scene.fog = voidFog;
     renderer.render(scene, camera);

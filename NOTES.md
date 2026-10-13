@@ -34,7 +34,7 @@ First person on a **floating ruin in a void**. Free-standing stone **archways** 
 1. [x] First-person prototype: ruin placeholder, one open archway into Star Nest with real depth. **Deploy.**
 2. [x] Walk through the archway: inside, Star Nest surrounds you (sphere around the camera, `rayOrigin = cameraPosition`), weightless flying, the archway shows the ruin from behind (screen-space portal), flash + view stretch on crossing.
 3. [ ] Artifacts + Rapier physics: pick up, carry, throw, place on the dais.
-4. [ ] More worlds: Seascape and Creation as "world" versions (camera ray instead of pixel ray).
+4. [x] More worlds: Seascape (ocean, includes the straight port) and Creation (2D, mapped onto directions around a far light) as "world" versions. All three archways open. Note: the artifact/unlock idea from stage 3 now needs a different goal, since every archway is already open.
 5. [ ] Blender ruin replaces the placeholder. Baking, animations.
 6. [ ] Polish: transitions (Heartfelt rain on the view), compute particles, sound?
 
@@ -47,9 +47,9 @@ js/script.js          renderer, scene, lights, portal materials, draw loop
 js/player.js          first person controls (pointer lock, WASD, gravity, respawn, weightless flying)
 js/doorway.js         detects walking through an archway (front to back = in, back to front = out)
 js/ruin.js            placeholder ruin: floor, archways, pillars, floating rocks, isGround()
-js/shaders/starNest/fragment.wgsl   straight port (pixel ray)
-js/shaders/starNest/world.wgsl      world version (ray from the 3D scene)
-js/shaders/seascape, creation, heartfelt: ported, not used yet
+js/shaders/<name>/fragment.wgsl    straight port (pixel ray)
+js/shaders/<name>/world.wgsl       world version (ray from the 3D scene), for starNest, seascape, creation
+js/shaders/heartfelt: ported, not used yet
 ```
 
 ## 5. For the Blender model

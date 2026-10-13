@@ -69,7 +69,8 @@ const createArch = ({ name, material, sealedMaterial }) => {
   return { arch, opening };
 };
 
-export const buildRuin = ({ portalMaterial }) => {
+// portalMaterials: one per archway (3), or null for a sealed one
+export const buildRuin = ({ portalMaterials }) => {
   const ruin = new THREE.Group();
   ruin.name = 'Ruin';
   const random = createRandom(7);
@@ -93,22 +94,19 @@ export const buildRuin = ({ portalMaterial }) => {
   dais.position.y = 0.15;
   ruin.add(dais);
 
-  // --- three archways around the dais, facing the center ---
+  // --- three archways around the dais, facing the center, each a doorway into its own world ---
 
   const sealedMaterial = stone(0x2a2622);
   const arches = [];
   const archRadius = 4.6;
   [0, 1, 2].forEach((i) => {
     const angle = Math.PI + (i * Math.PI * 2) / 3; // first one straight ahead of the spawn point
-    const { arch, opening } = createArch({
-      name: `Arch_${i + 1}`,
-      material: i === 0 ? portalMaterial : null,
-      sealedMaterial,
-    });
+    const material = portalMaterials[i] ?? null;
+    const { arch, opening } = createArch({ name: `Arch_${i + 1}`, material, sealedMaterial });
     arch.position.set(Math.sin(angle) * archRadius, 0, Math.cos(angle) * archRadius);
     arch.lookAt(0, 0, 0); // front of the doorway faces the center
     ruin.add(arch);
-    arches.push({ arch, opening, open: i === 0 });
+    arches.push({ arch, opening, open: material !== null });
   });
 
   // --- broken pillars along the edge ---
@@ -140,10 +138,10 @@ export const buildRuin = ({ portalMaterial }) => {
     rocks.push(rock);
   }
 
-  // --- shadows: everything casts and receives, except the self-lit doorway ---
+  // --- shadows: everything casts and receives, except the self-lit doorways ---
 
   ruin.traverse((child) => {
-    if (child.isMesh && child.material !== portalMaterial) {
+    if (child.isMesh && !portalMaterials.includes(child.material)) {
       child.castShadow = true;
       child.receiveShadow = true;
     }

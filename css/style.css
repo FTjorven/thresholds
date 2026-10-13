@@ -103,6 +103,8 @@ canvas {
   padding: 0.6rem 1.2rem;
   font-size: 1rem;
   font-style: italic;
+  line-height: 1.6;
+  white-space: pre-line; /* the hint can have a second line */
   text-align: center;
   opacity: 0;
   transition: opacity 0.8s;

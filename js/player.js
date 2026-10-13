@@ -31,6 +31,7 @@ export const createPlayer = ({ camera, domElement, spawn, isGround }) => {
   let onGround = false;
   let flying = false;
   let home = null; // where the pull brings you back to while flying
+  let minY = -Infinity; // lowest height while flying (e.g. stay above the sea)
 
   const respawn = () => {
     camera.position.set(spawn.x, spawn.y + EYE_HEIGHT, spawn.z);
@@ -106,6 +107,11 @@ export const createPlayer = ({ camera, domElement, spawn, isGround }) => {
     }
 
     camera.position.addScaledVector(velocity, delta);
+
+    if (camera.position.y < minY) {
+      camera.position.y = minY;
+      velocity.y = Math.max(velocity.y, 0);
+    }
   };
 
   const update = (delta) => {
@@ -114,10 +120,11 @@ export const createPlayer = ({ camera, domElement, spawn, isGround }) => {
   };
 
   // switch between walking and weightless flying, keeping your momentum
-  const setFlying = (value, homePosition = null) => {
+  const setFlying = (value, { homePosition = null, lowest = -Infinity } = {}) => {
     if (value === flying) return;
     flying = value;
     home = homePosition;
+    minY = lowest;
     onGround = false;
     if (flying) {
       // carry the walking speed into the glide
