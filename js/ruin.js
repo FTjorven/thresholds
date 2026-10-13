@@ -17,6 +17,16 @@ const createRandom = (seed) => () => {
 // the opening of an archway: a rectangle with a half circle on top
 const ARCH_HALF_WIDTH = 0.95;
 const ARCH_PILLAR_HEIGHT = 2.5;
+const OPENING_Y = 0.12; // the opening starts on top of the step
+
+// is a point (in the archway's local space) inside the opening? Used to detect walking through it.
+// A bit of extra room below, so your feet don't have to be exactly inside.
+export const isInOpening = (x, y) => {
+  const height = y - OPENING_Y;
+  if (Math.abs(x) > ARCH_HALF_WIDTH || height < -0.5) return false;
+  if (height <= ARCH_PILLAR_HEIGHT) return true;
+  return x * x + (height - ARCH_PILLAR_HEIGHT) ** 2 <= ARCH_HALF_WIDTH ** 2;
+};
 const createOpeningShape = () => {
   const shape = new THREE.Shape();
   shape.moveTo(-ARCH_HALF_WIDTH, 0);
@@ -53,7 +63,7 @@ const createArch = ({ name, material, sealedMaterial }) => {
   // the doorway itself: a window into a shader world, or sealed stone for worlds that aren't open yet
   const opening = new THREE.Mesh(new THREE.ShapeGeometry(createOpeningShape(), 24), material ?? sealedMaterial);
   opening.name = `${name}_Portal`;
-  opening.position.y = 0.12;
+  opening.position.y = OPENING_Y;
   arch.add(opening);
 
   return { arch, opening };

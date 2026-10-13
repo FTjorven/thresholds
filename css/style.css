@@ -68,6 +68,51 @@ canvas {
   pointer-events: none;
 }
 
+/* white-blue flash when you cross a doorway */
+
+.flash {
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(circle, rgba(220, 230, 255, 0.9), rgba(140, 160, 255, 0.4) 60%, transparent);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.flash.active {
+  animation: flash 0.9s ease-out;
+}
+
+@keyframes flash {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* short hints at the bottom of the screen */
+
+.hint {
+  position: fixed;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100% - 2rem);
+  padding: 0.6rem 1.2rem;
+  font-size: 1rem;
+  font-style: italic;
+  text-align: center;
+  opacity: 0;
+  transition: opacity 0.8s;
+  pointer-events: none;
+}
+
+.hint.visible {
+  opacity: 0.85;
+}
+
 .no-webgpu {
   position: fixed;
   top: 50%;

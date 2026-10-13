@@ -23,6 +23,7 @@ Ported and ready for the next worlds:
 - Click to enter (locks the mouse)
 - Mouse: look around
 - WASD / arrow keys: walk, Shift: run, Space: jump
+- Walk through the open archway to enter its world. Inside you're weightless: fly where you look, Space to rise, Shift to go faster. The archway leads back.
 - Esc: pause
 
 ## How it works
@@ -33,6 +34,8 @@ Every pixel of a doorway runs the shader with:
 - `rayDir`: the direction from the camera through that point (`positionWorld - cameraPosition`)
 
 So walking around the doorway changes the rays, which is the user interaction that drives the shader.
+
+Walking through the doorway puts you inside the world: a big sphere follows you, painted from the inside with the same shader, now with the rays starting at your eye. Looking back, the doorway shows the ruin: the ruin is rendered from your exact viewpoint into a texture, and the back of the doorway shows that texture at the same spot on screen (`screenUV`), so it lines up perfectly.
 
 ## Run locally
 
