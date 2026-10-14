@@ -1,11 +1,11 @@
 import * as THREE from 'three/webgpu';
+import { stoneMaterial as stone } from './materials.js';
 
 // Placeholder ruin built from primitives, in meters, floor at y = 0.
 // Meshes with userData.static get a matching physics collider (boxes and cylinders only).
 // A floating stone island in a void with archways. Your Blender model replaces this later:
 // keep the names (Ruin_Floor, Arch_1_Portal, ...) so the code can find the parts.
 
-const stone = (color, extra = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.9, flatShading: true, ...extra });
 
 // small seeded random, so the ruin looks the same on every load
 const createRandom = (seed) => () => {
@@ -80,13 +80,13 @@ export const buildRuin = ({ portalMaterials }) => {
 
   // --- the floating island: flat top, rocky underside ---
 
-  const floor = new THREE.Mesh(new THREE.CylinderGeometry(7, 6.6, 1.2, 9), stone(0x6d675e));
+  const floor = new THREE.Mesh(new THREE.CylinderGeometry(7, 6.6, 1.2, 9), stone(0x6d675e, { grounded: false }));
   floor.name = 'Ruin_Floor';
   floor.position.y = -0.6;
   floor.userData.static = true;
   ruin.add(floor);
 
-  const underside = new THREE.Mesh(new THREE.ConeGeometry(6.6, 7, 9), stone(0x4a4038));
+  const underside = new THREE.Mesh(new THREE.ConeGeometry(6.6, 7, 9), stone(0x4a4038, { grounded: false }));
   underside.name = 'Ruin_Underside';
   underside.rotation.x = Math.PI; // point down
   underside.position.y = -1.2 - 3.5;
@@ -130,7 +130,7 @@ export const buildRuin = ({ portalMaterials }) => {
   // --- rocks floating in the void ---
 
   const rocks = [];
-  const rockMaterial = stone(0x5a5048);
+  const rockMaterial = stone(0x5a5048, { grounded: false });
   for (let i = 0; i < 40; i++) {
     const size = 0.3 + random() * random() * 3;
     const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(size, 0), rockMaterial);

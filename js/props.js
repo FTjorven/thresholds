@@ -1,4 +1,5 @@
 import * as THREE from 'three/webgpu';
+import { stoneMaterial } from './materials.js';
 
 // Props around the archways: things to pick up and throw, and a tuning dial per archway.
 // Placeholders from primitives; the Blender versions replace them later.
@@ -6,7 +7,8 @@ import * as THREE from 'three/webgpu';
 // pickups: { mesh, kind, home, homeRotation } — physics bodies are added by the script
 // dials:   { mesh, world, index } — the part you click and that turns
 
-const stone = (color) => new THREE.MeshStandardMaterial({ color, roughness: 0.9, flatShading: true });
+// props get picked up and moved around, so no darkening towards the floor
+const stone = (color) => stoneMaterial(color, { grounded: false });
 
 const createCrystal = (color) => {
   const mesh = new THREE.Mesh(

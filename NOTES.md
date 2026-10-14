@@ -37,6 +37,7 @@ First person on a **floating ruin in a void**. Free-standing stone **archways** 
 4. [x] More worlds: Seascape (ocean, includes the straight port) and Creation (2D, mapped onto directions around a far light) as "world" versions. All three archways open. Note: the artifact/unlock idea from stage 3 now needs a different goal, since every archway is already open.
 5. [ ] Blender ruin replaces the placeholder. Baking, animations.
 6. [ ] Polish: transitions (Heartfelt rain on the view), compute particles, sound?
+   - [x] Lighting: bloom + Neutral tone mapping (RenderPipeline), gradient void, rebalanced lights, noise on the stone (js/materials.js), shaders warmed up while loading
 
 ## 4. Code structure
 
@@ -81,5 +82,7 @@ Course pattern for loading a baked model: `threejs/projects/blender-three-bake-f
 
 - `npm run build` → `dist/`. Host on Netlify / Vercel (connect the GitHub repo, build `npm run build`, publish `dist`), or GitHub Pages with `base` in `vite.config.js`.
 - Rapier 0.19.3 prints "using deprecated parameters for the initialization function" on startup: that's inside the library, harmless.
+- Entering a world draws the ruin into a render target for the first time, which compiles new shader variants: a stutter. `render()` runs once per world while loading, with the camera inside looking back at the archway, to compile everything up front.
+- `PCFSoftShadowMap` doesn't exist in WebGPURenderer anymore: use `PCFShadowMap` + `shadow.radius`.
 - Render targets in this dark scene need `type: THREE.HalfFloatType`: 8-bit linear storage crushes the dark colors.
 - Automated tests: use **headless** Chrome (`--enable-unsafe-webgpu --use-angle=metal`); a visible test window steals keyboard focus.

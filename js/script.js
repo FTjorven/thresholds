@@ -1,5 +1,20 @@
 import * as THREE from 'three/webgpu';
-import { wgslFn, wgsl, uniform, cameraPosition, positionWorld, screenUV, texture, colorSpaceToWorking } from 'three/tsl';
+import {
+  wgslFn,
+  wgsl,
+  uniform,
+  cameraPosition,
+  positionWorld,
+  positionWorldDirection,
+  screenUV,
+  texture,
+  colorSpaceToWorking,
+  color,
+  mix,
+  smoothstep,
+  pass,
+} from 'three/tsl';
+import { bloom } from 'three/addons/tsl/display/BloomNode.js';
 
 import starNestWorldShader from './shaders/starNest/world.wgsl?raw';
 import seascapeShader from './shaders/seascape/fragment.wgsl?raw';
@@ -25,23 +40,41 @@ const renderer = new THREE.WebGPURenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFShadowMap; // with shadow.radius below for softer edges
+// Neutral tone mapping: keeps colors (and the shader worlds) close to what they are,
+// only rolls off the brightest parts (glowing crystals, Creation's light) instead of clipping them
+renderer.toneMapping = THREE.NeutralToneMapping;
+renderer.toneMappingExposure = 1.15;
 document.body.appendChild(renderer.domElement);
 await renderer.init();
 
-const VOID_COLOR = 0x07060d;
+// the void: a faint purple glow far below, darker towards the horizon, near black above.
+// The fog has the horizon's color, so far away rocks fade into it.
+const VOID_BELOW = 0x2a1238;
+const VOID_HORIZON = 0x0d0a18;
+const VOID_ABOVE = 0x030308;
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(VOID_COLOR);
-const voidFog = new THREE.FogExp2(VOID_COLOR, 0.022);
+const viewY = positionWorldDirection.y;
+scene.backgroundNode = mix(
+  mix(color(VOID_BELOW), color(VOID_HORIZON), smoothstep(-0.7, -0.05, viewY)),
+  color(VOID_ABOVE),
+  smoothstep(0.0, 0.6, viewY)
+);
+const voidFog = new THREE.FogExp2(VOID_HORIZON, 0.022);
 scene.fog = voidFog;
 
 const FOV = 70;
 const camera = new THREE.PerspectiveCamera(FOV, window.innerWidth / window.innerHeight, 0.05, 200);
 
-// --- lights: cold moonlight from above, faint purple from the void below ---
+// --- lights ---
+// - a cold moon from above, the key light with soft shadows
+// - little flat ambient light, so the sides facing away from the moon stay dark and things have shape
+// - purple light from the void below, on the island's underside and the bottoms of things
+// - each doorway lights its surroundings in its world's color (further down)
 
-scene.add(new THREE.HemisphereLight(0x8a90b8, 0x2a1830, 0.6));
+scene.add(new THREE.HemisphereLight(0x4a5280, 0x3a1d4a, 0.35));
 
-const moon = new THREE.DirectionalLight(0xc8d0ff, 1.2);
+const moon = new THREE.DirectionalLight(0xb8c4ff, 1.4);
 moon.position.set(-8, 14, 6);
 moon.castShadow = true;
 moon.shadow.mapSize.set(2048, 2048);
@@ -50,7 +83,13 @@ moon.shadow.camera.right = 9;
 moon.shadow.camera.top = 9;
 moon.shadow.camera.bottom = -9;
 moon.shadow.bias = -0.0005;
+moon.shadow.normalBias = 0.02; // no shadow speckles on the flat-shaded stone
+moon.shadow.radius = 4; // softer edges
 scene.add(moon);
+
+const voidGlow = new THREE.DirectionalLight(0x8a4ad0, 0.6);
+voidGlow.position.set(4, -10, -3);
+scene.add(voidGlow);
 
 // --- the worlds, one behind each archway ---
 // includes: the straight port of the shader, so the world version can reuse its functions
@@ -110,7 +149,10 @@ const createWorldMaterial = (world, rayOrigin) => {
     }),
     THREE.SRGBColorSpace
   );
-  material.colorNode = color.mul(world.energy.mul(0.7).add(1)); // brighter when energized
+  // Shadertoy's canvas cuts colors off at 1, so this keeps the original look,
+  // and stops very bright shaders (Creation's light) from blowing up the bloom.
+  // Energized, a world goes past 1 for a moment: a deliberate flare.
+  material.colorNode = color.min(1).mul(world.energy.mul(0.7).add(1));
   material.fog = false; // the other world isn't in our fog
   return material;
 };
@@ -162,7 +204,7 @@ worlds.forEach((world, i) => {
   world.doorway = createDoorway({ arch, isInOpening });
 
   // the open doorway lights up the stone around it, in the color of its world
-  world.glowLight = new THREE.PointLight(world.glow, 4, 7, 2);
+  world.glowLight = new THREE.PointLight(world.glow, 6, 9, 2);
   world.glowLight.position.set(0, 1.6, 0.6);
   arch.add(world.glowLight);
 });
@@ -346,6 +388,67 @@ const exitWorld = () => {
   playCrossingEffect();
 };
 
+// --- post-processing: bloom ---
+// Everything brighter than the threshold (glowing crystals, gems, bright doorways, Creation's light)
+// bleeds a soft glow into its surroundings. Tone mapping is applied after, to the result.
+
+const renderPipeline = new THREE.RenderPipeline(renderer);
+const scenePass = pass(scene, camera, { samples: 4 }); // samples: keep the edges smooth
+const sceneColor = scenePass.getTextureNode('output');
+const glow = bloom(sceneColor, 0.45, 0.5, 0.8);
+renderPipeline.outputNode = sceneColor.add(glow);
+
+// inside a world the whole view is the shader: less glow, so it stays close to the original
+const BLOOM_OUTSIDE = 0.45;
+const BLOOM_INSIDE = 0.15;
+
+const render = () => {
+  if (current) {
+    // 1. the ruin as seen from here, for the view back through the doorway
+    worldSphere.visible = false;
+    current.opening.visible = false;
+    scene.fog = voidFog;
+    renderer.setRenderTarget(ruinTarget);
+    renderer.render(scene, camera);
+    renderer.setRenderTarget(null);
+
+    // 2. the world around you: only the archway you came through is left
+    ruin.visible = false;
+    props.group.visible = false;
+    for (const world of worlds) world.arch.visible = world === current;
+    worldSphere.position.copy(camera.position);
+    worldSphere.visible = true;
+    current.opening.visible = true;
+    scene.fog = null;
+    glow.strength.value = BLOOM_INSIDE;
+    renderPipeline.render();
+    ruin.visible = true;
+    props.group.visible = true;
+    for (const world of worlds) world.arch.visible = true;
+  } else {
+    scene.fog = voidFog;
+    glow.strength.value = BLOOM_OUTSIDE;
+    renderPipeline.render();
+  }
+};
+
+// warm up while loading: draw one frame inside each world, so all its shaders are compiled
+// before you walk in (otherwise the first step into each world stutters)
+// The camera stands just inside each world looking back at its archway, so everything you'd see
+// from there gets drawn once.
+for (const world of worlds) {
+  current = world;
+  world.opening.material = ruinView;
+  worldSphere.material = world.insideMaterial;
+  world.arch.localToWorld(camera.position.set(0, 1.6, -1));
+  camera.lookAt(world.arch.localToWorld(new THREE.Vector3(0, 1.6, 5)));
+  render();
+  world.opening.material = world.doorwayMaterial;
+}
+current = null;
+worldSphere.visible = false;
+player.respawn(); // back to the start
+
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
@@ -370,7 +473,7 @@ renderer.setAnimationLoop(() => {
     world.time.value += delta * (1 + world.energy.value * 5);
     world.energy.value *= Math.exp(-delta * 0.7);
     world.tuning.value += (world.tuningTarget - world.tuning.value) * (1 - Math.exp(-delta * 3));
-    world.glowLight.intensity = 4 * (1 + world.energy.value * 2);
+    world.glowLight.intensity = 6 * (1 + world.energy.value * 2);
   }
   for (const dial of props.dials) {
     dial.mesh.rotation.y += ((dial.angle ?? 0) - dial.mesh.rotation.y) * (1 - Math.exp(-delta * 10));
@@ -397,29 +500,5 @@ renderer.setAnimationLoop(() => {
   camera.fov = FOV + fovKick;
   camera.updateProjectionMatrix();
 
-  if (current) {
-    // 1. the ruin as seen from here, for the view back through the doorway
-    worldSphere.visible = false;
-    current.opening.visible = false;
-    scene.fog = voidFog;
-    renderer.setRenderTarget(ruinTarget);
-    renderer.render(scene, camera);
-    renderer.setRenderTarget(null);
-
-    // 2. the world around you: only the archway you came through is left
-    ruin.visible = false;
-    props.group.visible = false;
-    for (const world of worlds) world.arch.visible = world === current;
-    worldSphere.position.copy(camera.position);
-    worldSphere.visible = true;
-    current.opening.visible = true;
-    scene.fog = null;
-    renderer.render(scene, camera);
-    ruin.visible = true;
-    props.group.visible = true;
-    for (const world of worlds) world.arch.visible = true;
-  } else {
-    scene.fog = voidFog;
-    renderer.render(scene, camera);
-  }
+  render();
 });

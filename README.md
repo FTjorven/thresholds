@@ -46,6 +46,14 @@ Walking through the doorway puts you inside the world: a big sphere follows you,
   - Seascape: time of day (noon, golden hour, dusk)
   - Creation: the size of the light
 
+## Lighting
+
+- Cold moonlight with soft shadows as the key light, little flat ambient light, purple light from the void below, and each doorway lighting its surroundings in its world's color
+- The void is a gradient (purple glow below, black above); the fog has the horizon's color
+- Post-processing (`RenderPipeline`): bloom on everything bright (crystals, gems, doorways), then Neutral tone mapping
+- The shader worlds are clamped at 1, like Shadertoy's canvas, which keeps their original look and stops very bright shaders from blowing up the bloom
+- Stone gets color variation from 3D noise (TSL `mx_fractal_noise_float`) and darkens towards the floor
+
 ## Run locally
 
 ```sh
