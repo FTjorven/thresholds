@@ -7,8 +7,11 @@ import seascapeWorldShader from './shaders/seascape/world.wgsl?raw';
 import creationShader from './shaders/creation/fragment.wgsl?raw';
 import creationWorldShader from './shaders/creation/world.wgsl?raw';
 import { buildRuin, isInOpening } from './ruin.js';
+import { buildProps } from './props.js';
+import { createPhysics } from './physics.js';
 import { createPlayer } from './player.js';
 import { createDoorway } from './doorway.js';
+import { createInteraction } from './interaction.js';
 
 if (!navigator.gpu) {
   document.querySelector('.no-webgpu').hidden = false;
@@ -49,14 +52,12 @@ moon.shadow.camera.bottom = -9;
 moon.shadow.bias = -0.0005;
 scene.add(moon);
 
-// --- uniforms ---
-
-const iTime = uniform(0);
-const creationLight = uniform(new THREE.Vector3()); // where Creation's light hangs, set once the ruin is built
-
 // --- the worlds, one behind each archway ---
 // includes: the straight port of the shader, so the world version can reuse its functions
+// tunings: the values the dial next to the archway steps through (the first is the original)
 // lowest: lowest flying height inside (stay above the sea)
+
+const creationLight = uniform(new THREE.Vector3()); // where Creation's light hangs, set once the ruin is built
 
 const worlds = [
   {
@@ -64,12 +65,14 @@ const worlds = [
     shader: starNestWorldShader,
     includes: [],
     glow: 0x9fb4ff,
+    tunings: [0.53, 0.38, 0.565], // the fractal's "magic formula" parameter: original, glowing nebula, star cluster
   },
   {
     title: 'Seascape · TDM',
     shader: seascapeWorldShader,
     includes: [seascapeShader],
     glow: 0xcfe8ff,
+    tunings: [0, 0.55, 1], // noon, golden hour, dusk
     lowest: 0.1,
   },
   {
@@ -77,9 +80,18 @@ const worlds = [
     shader: creationWorldShader,
     includes: [creationShader],
     glow: 0xffd2b8,
+    tunings: [1, 0.45, 2.2], // size of the light
     inputs: { lightPosition: creationLight },
   },
 ];
+
+// every world has its own clock (it runs faster when energized), energy and tuning
+for (const world of worlds) {
+  world.time = uniform(0);
+  world.energy = uniform(0); // a crystal thrown in: 1, fades back to 0
+  world.tuning = uniform(world.tunings[0]);
+  world.tuningTarget = world.tunings[0];
+}
 
 // The shader gets a real ray from your eye instead of a pixel position:
 // - seen through a doorway, the ray starts where it passes through the doorway
@@ -88,15 +100,17 @@ const worlds = [
 const createWorldMaterial = (world, rayOrigin) => {
   const material = new THREE.MeshBasicNodeMaterial();
   const shader = wgslFn(world.shader, world.includes.map((code) => wgsl(code)));
-  material.colorNode = colorSpaceToWorking(
+  const color = colorSpaceToWorking(
     shader({
       rayOrigin,
       rayDir: positionWorld.sub(cameraPosition).normalize(),
-      iTime,
+      iTime: world.time,
+      tuning: world.tuning,
       ...world.inputs,
     }),
     THREE.SRGBColorSpace
   );
+  material.colorNode = color.mul(world.energy.mul(0.7).add(1)); // brighter when energized
   material.fog = false; // the other world isn't in our fog
   return material;
 };
@@ -148,13 +162,48 @@ worlds.forEach((world, i) => {
   world.doorway = createDoorway({ arch, isInOpening });
 
   // the open doorway lights up the stone around it, in the color of its world
-  const glow = new THREE.PointLight(world.glow, 4, 7, 2);
-  glow.position.set(0, 1.6, 0.6);
-  arch.add(glow);
+  world.glowLight = new THREE.PointLight(world.glow, 4, 7, 2);
+  world.glowLight.position.set(0, 1.6, 0.6);
+  arch.add(world.glowLight);
 });
 
 // Creation's light hangs 30 m behind its archway, at eye height
 worlds[2].arch.localToWorld(creationLight.value.set(0, 1.6, -30));
+
+// --- props around the archways, with physics ---
+
+const props = buildProps({ worlds });
+scene.add(props.group);
+
+const physics = await createPhysics();
+scene.traverse((child) => child.userData.static && physics.addStatic(child));
+
+const { RAPIER } = physics;
+for (const pickup of props.pickups) {
+  const { mesh, kind } = pickup;
+  let shape;
+  if (kind === 'urn') {
+    shape = RAPIER.ColliderDesc.cylinder(0.25, 0.17);
+  } else {
+    // crystals and stones: the exact shape of the mesh (its convex hull), scaled like the mesh
+    const points = mesh.geometry.attributes.position.array.slice();
+    for (let i = 0; i < points.length; i += 3) {
+      points[i] *= mesh.scale.x;
+      points[i + 1] *= mesh.scale.y;
+      points[i + 2] *= mesh.scale.z;
+    }
+    shape = RAPIER.ColliderDesc.convexHull(points);
+  }
+  pickup.body = physics.addDynamic(mesh, shape, {
+    mass: { crystal: 0.5, stone: 0.8, urn: 2 }[kind],
+    angularDamping: kind === 'urn' ? 3 : 0.3, // a tipped-over urn shouldn't roll off the island
+  });
+  pickup.state = 'free'; // free, held, or gone (thrown into a world, comes back later)
+  pickup.baseScale = mesh.scale.clone();
+  pickup.appear = 1;
+  // one tracker per archway, to notice when it flies through a doorway
+  pickup.doorways = worlds.map((world) => createDoorway({ arch: world.arch, isInOpening }));
+}
 
 // --- player ---
 
@@ -176,6 +225,75 @@ player.controls.addEventListener('unlock', () => {
   startScreen.classList.remove('hidden');
   startScreen.querySelector('.start-title').textContent = 'Paused';
 });
+
+// --- interacting: picking up, throwing, turning dials ---
+
+const turnDial = (dial) => {
+  const { world } = dial;
+  dial.index = (dial.index + 1) % world.tunings.length;
+  world.tuningTarget = world.tunings[dial.index];
+  dial.angle = (dial.angle ?? 0) - (Math.PI * 2) / world.tunings.length; // always turns the same way
+  world.energy.value = Math.max(world.energy.value, 0.3); // a little flare, so you see which world changed
+};
+
+const interaction = createInteraction({
+  camera,
+  physics,
+  pickups: props.pickups,
+  dials: props.dials,
+  onTurnDial: turnDial,
+});
+
+const canInteract = () => player.controls.isLocked && !current;
+document.addEventListener('mousedown', (e) => {
+  if (e.button === 0 && canInteract()) interaction.interact();
+});
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'KeyE' && canInteract()) interaction.interact();
+});
+
+// a prop that goes through a doorway disappears into that world and energizes it
+const sendIntoWorld = (pickup, world, elapsed) => {
+  if (interaction.held === pickup) interaction.releaseHeld();
+  pickup.state = 'gone';
+  pickup.body.setEnabled(false);
+  pickup.mesh.visible = false;
+  pickup.respawnAt = elapsed + 3;
+  world.energy.value = Math.min(world.energy.value + 1, 1.5);
+};
+
+const respawn = (pickup) => {
+  const { body, home, homeRotation } = pickup;
+  body.setEnabled(true);
+  body.setBodyType(RAPIER.RigidBodyType.Dynamic, true);
+  body.setTranslation(home, true);
+  body.setRotation(homeRotation, true);
+  body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+  body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+  pickup.state = 'free';
+  pickup.mesh.visible = true;
+  pickup.appear = 0; // grows back in
+};
+
+const updatePickups = (delta, elapsed) => {
+  for (const pickup of props.pickups) {
+    if (pickup.state === 'gone') {
+      if (elapsed >= pickup.respawnAt) respawn(pickup);
+      continue;
+    }
+    worlds.forEach((world, i) => {
+      if (pickup.state !== 'gone' && pickup.doorways[i].update(pickup.mesh.position, false) === 'enter') {
+        sendIntoWorld(pickup, world, elapsed);
+      }
+    });
+    if (pickup.mesh.position.y < -30) respawn(pickup); // fell into the void
+    if (pickup.appear < 1) {
+      pickup.appear = Math.min(pickup.appear + delta * 3, 1);
+      const grow = 1 - (1 - pickup.appear) ** 3; // ease out
+      pickup.mesh.scale.copy(pickup.baseScale).multiplyScalar(grow);
+    }
+  }
+};
 
 // --- going in and out of the worlds ---
 
@@ -242,10 +360,27 @@ const timer = new THREE.Timer();
 renderer.setAnimationLoop(() => {
   timer.update();
   const delta = Math.min(timer.getDelta(), 0.1); // no huge jumps after switching tabs
-  iTime.value = timer.getElapsed();
+  const elapsed = timer.getElapsed();
 
   player.update(delta);
-  animate(iTime.value);
+  animate(elapsed);
+
+  // worlds: clocks run faster while energized, energy fades, tuning eases to the dial's value
+  for (const world of worlds) {
+    world.time.value += delta * (1 + world.energy.value * 5);
+    world.energy.value *= Math.exp(-delta * 0.7);
+    world.tuning.value += (world.tuningTarget - world.tuning.value) * (1 - Math.exp(-delta * 3));
+    world.glowLight.intensity = 4 * (1 + world.energy.value * 2);
+  }
+  for (const dial of props.dials) {
+    dial.mesh.rotation.y += ((dial.angle ?? 0) - dial.mesh.rotation.y) * (1 - Math.exp(-delta * 10));
+  }
+
+  // physics: props, and you as a capsule that pushes them (not there while you're inside a world)
+  interaction.update(canInteract());
+  physics.setPlayer(camera.position, !current);
+  physics.step(delta);
+  updatePickups(delta, elapsed);
 
   // every doorway keeps track of which side you're on, even the ones that don't matter right now
   let entered = null;
@@ -273,6 +408,7 @@ renderer.setAnimationLoop(() => {
 
     // 2. the world around you: only the archway you came through is left
     ruin.visible = false;
+    props.group.visible = false;
     for (const world of worlds) world.arch.visible = world === current;
     worldSphere.position.copy(camera.position);
     worldSphere.visible = true;
@@ -280,6 +416,7 @@ renderer.setAnimationLoop(() => {
     scene.fog = null;
     renderer.render(scene, camera);
     ruin.visible = true;
+    props.group.visible = true;
     for (const world of worlds) world.arch.visible = true;
   } else {
     scene.fog = voidFog;

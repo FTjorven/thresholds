@@ -33,7 +33,7 @@ First person on a **floating ruin in a void**. Free-standing stone **archways** 
 
 1. [x] First-person prototype: ruin placeholder, one open archway into Star Nest with real depth. **Deploy.**
 2. [x] Walk through the archway: inside, Star Nest surrounds you (sphere around the camera, `rayOrigin = cameraPosition`), weightless flying, the archway shows the ruin from behind (screen-space portal), flash + view stretch on crossing.
-3. [ ] Artifacts + Rapier physics: pick up, carry, throw, place on the dais.
+3. [x] Rapier physics + props around the archways: crystals/urns/stones to pick up and throw (into a doorway = energizes that world), a tuning dial per archway (changes a shader value). The player is a kinematic capsule that pushes props. Still open: the player walks through pillars (Rapier's character controller could replace the simple isGround walking).
 4. [x] More worlds: Seascape (ocean, includes the straight port) and Creation (2D, mapped onto directions around a far light) as "world" versions. All three archways open. Note: the artifact/unlock idea from stage 3 now needs a different goal, since every archway is already open.
 5. [ ] Blender ruin replaces the placeholder. Baking, animations.
 6. [ ] Polish: transitions (Heartfelt rain on the view), compute particles, sound?
@@ -45,7 +45,10 @@ index.html            start screen, crosshair
 css/style.css
 js/script.js          renderer, scene, lights, portal materials, draw loop
 js/player.js          first person controls (pointer lock, WASD, gravity, respawn, weightless flying)
-js/doorway.js         detects walking through an archway (front to back = in, back to front = out)
+js/doorway.js         detects walking through an archway (front to back = in, back to front = out), also used for thrown props
+js/physics.js         Rapier: static colliders from meshes with userData.static, dynamic props, player capsule
+js/props.js           crystals, urns, stones, tuning dials around the archways
+js/interaction.js     crosshair raycast, prompt, pick up / hold / throw, turning dials
 js/ruin.js            placeholder ruin: floor, archways, pillars, floating rocks, isGround()
 js/shaders/<name>/fragment.wgsl    straight port (pixel ray)
 js/shaders/<name>/world.wgsl       world version (ray from the 3D scene), for starNest, seascape, creation
@@ -77,5 +80,6 @@ Course pattern for loading a baked model: `threejs/projects/blender-three-bake-f
 ## 7. Testing + deployment
 
 - `npm run build` → `dist/`. Host on Netlify / Vercel (connect the GitHub repo, build `npm run build`, publish `dist`), or GitHub Pages with `base` in `vite.config.js`.
+- Rapier 0.19.3 prints "using deprecated parameters for the initialization function" on startup: that's inside the library, harmless.
 - Render targets in this dark scene need `type: THREE.HalfFloatType`: 8-bit linear storage crushes the dark colors.
 - Automated tests: use **headless** Chrome (`--enable-unsafe-webgpu --use-angle=metal`); a visible test window steals keyboard focus.

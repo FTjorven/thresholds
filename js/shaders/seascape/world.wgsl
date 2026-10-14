@@ -7,8 +7,10 @@
 // that flies along by itself, the ray comes from the player's eye in the 3D scene.
 // - 1 meter in the scene = 1 unit in the sea
 // - eye height on the ruin (1.6 m) = the original camera height (3.5 units above the sea)
+// - tuning: time of day, turned by the dial next to the archway. 0 = noon (the original), 1 = dusk:
+//   the sun sinks towards the horizon and the light gets warmer and darker
 
-fn seascapeWorld(rayOrigin: vec3f, rayDir: vec3f, iTime: f32) -> vec4f {
+fn seascapeWorld(rayOrigin: vec3f, rayDir: vec3f, iTime: f32, tuning: f32) -> vec4f {
   let seaTime = 1.0 + iTime * SEA_SPEED;
 
   let ori = vec3f(rayOrigin.x, rayOrigin.y + 1.9, rayOrigin.z);
@@ -19,14 +21,17 @@ fn seascapeWorld(rayOrigin: vec3f, rayDir: vec3f, iTime: f32) -> vec4f {
   let dist = p - ori;
   // EPSILON_NRM is 0.1 / iResolution.x in the original: a fixed value for an 500 pixel wide view
   let n = seaGetNormal(p, dot(dist, dist) * 0.0002, seaTime);
-  let light = normalize(vec3f(0.0, 1.0, 0.8));
+  let light = normalize(mix(vec3f(0.0, 1.0, 0.8), vec3f(0.0, 0.12, 1.0), tuning));
 
   // color
-  let color = mix(
+  var color = mix(
     seaGetSkyColor(dir),
     seaGetSeaColor(p, n, light, dir, dist),
     pow(1.0 - smoothstep(-0.05, 0.0, dir.y), 0.3)
   );
+
+  // time of day (own addition)
+  color *= mix(vec3f(1.0), vec3f(1.1, 0.62, 0.42), tuning) * mix(1.0, 0.5, tuning * tuning);
 
   // post
   return vec4f(pow(max(color, vec3f(0.0)), vec3f(0.75)), 1.0);

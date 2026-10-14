@@ -7,9 +7,10 @@
 // projection: 0 straight at the light, growing towards the sides), scaled by how far away the
 // light is. Fly towards it and it grows until you're inside it.
 // The ripple loop itself is the original.
+// - tuning: size of the light, turned by the dial next to the archway (1 = fills the view from 30 m away)
 
-fn creationWorld(rayOrigin: vec3f, rayDir: vec3f, iTime: f32, lightPosition: vec3f) -> vec4f {
-  const lightSize = 30.0; // seen from 30 m away, it fills the view like the original fills the screen
+fn creationWorld(rayOrigin: vec3f, rayDir: vec3f, iTime: f32, tuning: f32, lightPosition: vec3f) -> vec4f {
+  let lightSize = 30.0 * tuning; // seen from 30 m away, it fills the view like the original fills the screen
 
   let toLight = lightPosition - rayOrigin;
   let distance = max(length(toLight), 0.5);

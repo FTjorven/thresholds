@@ -23,6 +23,7 @@ Ported, not used yet:
 - Click to enter (locks the mouse)
 - Mouse: look around
 - WASD / arrow keys: walk, Shift: run, Space: jump
+- Click / E: pick up, throw, turn a dial (look at it, the crosshair turns into a ring)
 - Walk through an archway to enter its world. Inside you're weightless: fly where you look, Space to rise, Shift to go faster. The archway leads back.
 - Esc: pause
 
@@ -37,6 +38,14 @@ So walking around the doorway changes the rays, which is the user interaction th
 
 Walking through the doorway puts you inside the world: a big sphere follows you, painted from the inside with the same shader, now with the rays starting at your eye. Looking back, the doorway shows the ruin: the ruin is rendered from your exact viewpoint into a texture, and the back of the doorway shows that texture at the same spot on screen (`screenUV`), so it lines up perfectly.
 
+## Around the archways
+
+- **Crystals** (2 per archway), **urns** and **stones**: pick up and throw, or bump into them (Rapier physics). Throw one through a doorway and it disappears into that world, which energizes it: the world's clock runs up to 6× faster and it brightens, then calms down. The prop comes back after a few seconds. Things that fall off the island come back too.
+- **Tuning dials** (1 per archway): each click turns the dial a notch and changes a value in that world's shader:
+  - Star Nest: the fractal's "magic formula" parameter (0.53 original, 0.38 glowing nebula, 0.565 star cluster)
+  - Seascape: time of day (noon, golden hour, dusk)
+  - Creation: the size of the light
+
 ## Run locally
 
 ```sh
@@ -49,4 +58,5 @@ Needs a browser with WebGPU (recent Chrome, Edge or Safari on desktop).
 ## Built with
 
 - [Three.js](https://threejs.org) `WebGPURenderer`, TSL / WGSL
+- [Rapier](https://rapier.rs) physics (`@dimforge/rapier3d-compat`)
 - [Vite](https://vite.dev)

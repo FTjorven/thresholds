@@ -68,6 +68,38 @@ canvas {
   pointer-events: none;
 }
 
+/* the crosshair grows into a ring when you look at something you can use */
+
+.crosshair {
+  transition: width 0.15s, height 0.15s, margin 0.15s, background 0.15s, border 0.15s;
+}
+
+.crosshair.active {
+  width: 18px;
+  height: 18px;
+  margin: -9px 0 0 -9px;
+  background: transparent;
+  border: 2px solid rgba(255, 255, 255, 0.8);
+}
+
+.prompt {
+  position: fixed;
+  top: calc(50% + 1.5rem);
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  font-family: system-ui, sans-serif;
+  font-size: 0.85rem;
+  letter-spacing: 0.05em;
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: none;
+}
+
+.prompt.visible {
+  opacity: 0.85;
+}
+
 /* white-blue flash when you cross a doorway */
 
 .flash {

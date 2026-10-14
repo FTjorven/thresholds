@@ -7,11 +7,12 @@
 // That gives real depth: walk past the doorway and the nebula shifts like a real place behind it.
 // - rayOrigin: where the ray starts in the scene (the doorway surface, or the camera when inside)
 // - rayDir: the direction from the camera through this pixel
+// - tuning: the "magic formula" parameter (0.53 in the original), turned by the dial next to the archway
 // The volumetric rendering loop is unchanged from the original.
 
-fn starNestWorld(rayOrigin: vec3f, rayDir: vec3f, iTime: f32) -> vec4f {
+fn starNestWorld(rayOrigin: vec3f, rayDir: vec3f, iTime: f32, tuning: f32) -> vec4f {
   const iterations = 17;
-  const formuparam = 0.53;
+  let formuparam = tuning;
 
   const volsteps = 20;
   const stepsize = 0.1;

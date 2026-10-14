@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
 
 // Placeholder ruin built from primitives, in meters, floor at y = 0.
+// Meshes with userData.static get a matching physics collider (boxes and cylinders only).
 // A floating stone island in a void with archways. Your Blender model replaces this later:
 // keep the names (Ruin_Floor, Arch_1_Portal, ...) so the code can find the parts.
 
@@ -46,6 +47,7 @@ const createArch = ({ name, material, sealedMaterial }) => {
     const pillar = new THREE.Mesh(new THREE.BoxGeometry(0.5, ARCH_PILLAR_HEIGHT, 0.6), archStone);
     pillar.name = `${name}_Pillar`;
     pillar.position.set(side * (ARCH_HALF_WIDTH + 0.25), ARCH_PILLAR_HEIGHT / 2, 0);
+    pillar.userData.static = true;
     arch.add(pillar);
   }
 
@@ -58,6 +60,7 @@ const createArch = ({ name, material, sealedMaterial }) => {
   const step = new THREE.Mesh(new THREE.BoxGeometry(3, 0.12, 1.2), stone(0x6f6a60));
   step.name = `${name}_Step`;
   step.position.y = 0.06;
+  step.userData.static = true;
   arch.add(step);
 
   // the doorway itself: a window into a shader world, or sealed stone for worlds that aren't open yet
@@ -80,6 +83,7 @@ export const buildRuin = ({ portalMaterials }) => {
   const floor = new THREE.Mesh(new THREE.CylinderGeometry(7, 6.6, 1.2, 9), stone(0x6d675e));
   floor.name = 'Ruin_Floor';
   floor.position.y = -0.6;
+  floor.userData.static = true;
   ruin.add(floor);
 
   const underside = new THREE.Mesh(new THREE.ConeGeometry(6.6, 7, 9), stone(0x4a4038));
@@ -92,6 +96,7 @@ export const buildRuin = ({ portalMaterials }) => {
   const dais = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.5, 0.3, 9), stone(0x7d776c));
   dais.name = 'Ruin_Dais';
   dais.position.y = 0.15;
+  dais.userData.static = true;
   ruin.add(dais);
 
   // --- three archways around the dais, facing the center, each a doorway into its own world ---
@@ -118,6 +123,7 @@ export const buildRuin = ({ portalMaterials }) => {
     pillar.name = 'Ruin_BrokenPillar';
     pillar.position.set(Math.sin(angle) * 6.3, height / 2, Math.cos(angle) * 6.3);
     pillar.rotation.z = (random() - 0.5) * 0.15;
+    pillar.userData.static = true;
     ruin.add(pillar);
   }
 
