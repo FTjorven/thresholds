@@ -13,6 +13,9 @@ import {
   mix,
   smoothstep,
   pass,
+  positionLocal,
+  screenSize,
+  vec2,
 } from 'three/tsl';
 import { bloom } from 'three/addons/tsl/display/BloomNode.js';
 
@@ -21,8 +24,11 @@ import seascapeShader from './shaders/seascape/fragment.wgsl?raw';
 import seascapeWorldShader from './shaders/seascape/world.wgsl?raw';
 import creationShader from './shaders/creation/fragment.wgsl?raw';
 import creationWorldShader from './shaders/creation/world.wgsl?raw';
+import heartfeltShader from './shaders/heartfelt/fragment.wgsl?raw';
 import { buildRuin, isInOpening } from './ruin.js';
 import { buildProps } from './props.js';
+import { buildArtifacts } from './artifacts.js';
+import { buildDais } from './dais.js';
 import { createPhysics } from './physics.js';
 import { createPlayer } from './player.js';
 import { createDoorway } from './doorway.js';
@@ -72,7 +78,9 @@ const camera = new THREE.PerspectiveCamera(FOV, window.innerWidth / window.inner
 // - purple light from the void below, on the island's underside and the bottoms of things
 // - each doorway lights its surroundings in its world's color (further down)
 
-scene.add(new THREE.HemisphereLight(0x4a5280, 0x3a1d4a, 0.35));
+const AMBIENT = 0.35; // grows a little with every light that's home
+const ambient = new THREE.HemisphereLight(0x4a5280, 0x3a1d4a, AMBIENT);
+scene.add(ambient);
 
 const moon = new THREE.DirectionalLight(0xb8c4ff, 1.4);
 moon.position.set(-8, 14, 6);
@@ -94,6 +102,8 @@ scene.add(voidGlow);
 // --- the worlds, one behind each archway ---
 // includes: the straight port of the shader, so the world version can reuse its functions
 // tunings: the values the dial next to the archway steps through (the first is the original)
+// key: the tuning (index) that makes the world's light show up, shown by the carving on the archway
+// artifact: the light hidden in the world, and where it floats (archway space: -z is into the world)
 // lowest: lowest flying height inside (stay above the sea)
 
 const creationLight = uniform(new THREE.Vector3()); // where Creation's light hangs, set once the ruin is built
@@ -105,6 +115,8 @@ const worlds = [
     includes: [],
     glow: 0x9fb4ff,
     tunings: [0.53, 0.38, 0.565], // the fractal's "magic formula" parameter: original, glowing nebula, star cluster
+    key: 1, // glowing nebula
+    artifact: { name: 'star shard', spot: [6, 7, -18] }, // high up to the right
   },
   {
     title: 'Seascape · TDM',
@@ -112,6 +124,8 @@ const worlds = [
     includes: [seascapeShader],
     glow: 0xcfe8ff,
     tunings: [0, 0.55, 1], // noon, golden hour, dusk
+    key: 2, // dusk
+    artifact: { name: 'pearl', spot: [-8, 2, -20] }, // low over the waves, to the left
     lowest: 0.1,
   },
   {
@@ -120,6 +134,8 @@ const worlds = [
     includes: [creationShader],
     glow: 0xffd2b8,
     tunings: [1, 0.45, 2.2], // size of the light
+    key: 1, // the smallest light
+    artifact: { name: 'sun seed', spot: [3, 2.5, -16] }, // in front of the light
     inputs: { lightPosition: creationLight },
   },
 ];
@@ -130,7 +146,11 @@ for (const world of worlds) {
   world.energy = uniform(0); // a crystal thrown in: 1, fades back to 0
   world.tuning = uniform(world.tunings[0]);
   world.tuningTarget = world.tunings[0];
+  world.dialIndex = 0;
 }
+
+// a world's light only shows up while the world is tuned to its key
+const isTuned = (world) => world.dialIndex === world.key;
 
 // The shader gets a real ray from your eye instead of a pixel position:
 // - seen through a doorway, the ray starts where it passes through the doorway
@@ -163,6 +183,33 @@ for (const world of worlds) {
   world.insideMaterial.side = THREE.BackSide;
   world.insideMaterial.depthWrite = false;
 }
+
+// --- Heartfelt: the way home, behind the final archway ---
+// A 2D shader (rain on a window, a night street behind it), so it gets pixel coordinates:
+// on the doorway, its position on the opening; at the very end, the whole screen.
+
+const rainTime = uniform(0);
+const heartfelt = wgslFn(heartfeltShader);
+const FINALE_OPENING = vec2(1.9, 3.45); // size of an archway's opening, in meters
+const finaleMaterial = new THREE.MeshBasicNodeMaterial();
+finaleMaterial.colorNode = colorSpaceToWorking(
+  heartfelt({
+    fragCoord: positionLocal.xy.add(vec2(0.95, 0)).mul(400),
+    iTime: rainTime,
+    iResolution: FINALE_OPENING.mul(400),
+  }),
+  THREE.SRGBColorSpace
+).min(1);
+finaleMaterial.fog = false;
+
+const endingRain = colorSpaceToWorking(
+  heartfelt({
+    fragCoord: vec2(screenUV.x, screenUV.y.oneMinus()).mul(screenSize), // Shadertoy's y points up
+    iTime: rainTime,
+    iResolution: screenSize,
+  }),
+  THREE.SRGBColorSpace
+);
 
 // inside: a big sphere around you, painted from the inside, always drawn behind everything
 const worldSphere = new THREE.Mesh(new THREE.SphereGeometry(50, 32, 16), worlds[0].insideMaterial);
@@ -217,6 +264,26 @@ worlds[2].arch.localToWorld(creationLight.value.set(0, 1.6, -30));
 const props = buildProps({ worlds });
 scene.add(props.group);
 
+// --- the game: a light hidden in each world, three sockets on the dais, the final archway ---
+
+const { group: artifactGroup, artifacts } = buildArtifacts({ worlds });
+scene.add(artifactGroup);
+worlds.forEach((world, i) => (world.artifact.pickup = artifacts[i]));
+
+const dais = buildDais({ worlds, finaleMaterial });
+scene.add(dais.group);
+const finaleDoorway = createDoorway({ arch: dais.finale.arch, isInOpening });
+
+// the Blender model's animations replace these clips later, with the same names
+const mixer = new THREE.AnimationMixer(dais.group);
+const playClip = (name) => {
+  const action = mixer.clipAction(THREE.AnimationClip.findByName(dais.clips, name));
+  action.setLoop(THREE.LoopOnce, 1);
+  action.clampWhenFinished = true; // stay in the final pose
+  action.reset().play();
+  return action;
+};
+
 const physics = await createPhysics();
 scene.traverse((child) => child.userData.static && physics.addStatic(child));
 
@@ -247,6 +314,17 @@ for (const pickup of props.pickups) {
   pickup.doorways = worlds.map((world) => createDoorway({ arch: world.arch, isInOpening }));
 }
 
+// the lights: waiting in their worlds (no active body) until you take them
+for (const artifact of artifacts) {
+  artifact.body = physics.addDynamic(artifact.mesh, RAPIER.ColliderDesc.ball(0.2), { mass: 0.5, angularDamping: 2 });
+  artifact.body.setEnabled(false);
+  artifact.state = 'inWorld'; // inWorld, held, free (on the ruin), or placed
+  artifact.baseScale = artifact.mesh.scale.clone();
+  artifact.appear = 1;
+  artifact.doorways = worlds.map((world) => createDoorway({ arch: world.arch, isInOpening }));
+}
+const pickups = [...props.pickups, ...artifacts];
+
 // --- player ---
 
 const player = createPlayer({
@@ -262,31 +340,112 @@ startScreen.addEventListener('click', () => {
   // the browser can refuse (e.g. right after pressing Esc): just stay on the start screen
   renderer.domElement.requestPointerLock()?.catch?.(() => {});
 });
-player.controls.addEventListener('lock', () => startScreen.classList.add('hidden'));
+player.controls.addEventListener('lock', () => {
+  startScreen.classList.add('hidden');
+  tracker.classList.add('visible');
+});
 player.controls.addEventListener('unlock', () => {
+  if (ending) return; // the ending has its own screen
   startScreen.classList.remove('hidden');
   startScreen.querySelector('.start-title').textContent = 'Paused';
 });
 
-// --- interacting: picking up, throwing, turning dials ---
+// --- hints and the lights tracker at the top ---
+
+const hint = document.querySelector('.hint');
+let hintTimeout = null;
+
+const showHint = (text, seconds = 5) => {
+  hint.textContent = text;
+  hint.classList.add('visible');
+  clearTimeout(hintTimeout);
+  hintTimeout = setTimeout(() => hint.classList.remove('visible'), seconds * 1000);
+};
+
+const tracker = document.querySelector('.lights');
+const trackerLights = worlds.map((world) => {
+  const light = document.createElement('span');
+  light.style.color = `#${new THREE.Color(world.glow).getHexString()}`;
+  light.title = world.artifact.name;
+  tracker.append(light);
+  return light;
+});
+
+// --- interacting: picking up, throwing, turning dials, placing the lights ---
+
+let current = null; // the world you're in, or null on the ruin
+let ending = false;
 
 const turnDial = (dial) => {
   const { world } = dial;
   dial.index = (dial.index + 1) % world.tunings.length;
+  world.dialIndex = dial.index;
   world.tuningTarget = world.tunings[dial.index];
   dial.angle = (dial.angle ?? 0) - (Math.PI * 2) / world.tunings.length; // always turns the same way
   world.energy.value = Math.max(world.energy.value, 0.3); // a little flare, so you see which world changed
+  if (isTuned(world) && world.artifact.pickup.state === 'inWorld') {
+    world.energy.value = Math.max(world.energy.value, 0.8);
+    showHint('The carving above the archway lights up');
+  }
+};
+
+// what the crosshair can use right now
+const isAvailable = (thing) => {
+  const { held } = interaction;
+  if (thing.type === 'socket') return !current && held?.kind === 'artifact' && !thing.filled;
+  if (held) return false;
+  if (thing.type === 'dial') return !current;
+  if (thing.kind === 'artifact' && thing.state === 'inWorld') return thing.world === current && isTuned(current);
+  return !current && thing.state === 'free';
+};
+
+const onPickUp = (pickup) => {
+  if (pickup.kind === 'artifact' && current) showHint(`The ${pickup.label}. Carry it home through the doorway.`);
+};
+
+const placedCount = () => dais.sockets.filter((socket) => socket.filled).length;
+let finaleOpen = false;
+
+const place = (artifact, socket) => {
+  artifact.state = 'placed';
+  artifact.body.setEnabled(false);
+  socket.filled = true;
+  socket.light.intensity = 4;
+  socket.glowMaterial.emissiveIntensity = 2;
+  const index = dais.sockets.indexOf(socket);
+  dais.rings[index].studMaterial.emissiveIntensity = 2.5;
+  trackerLights[index].classList.add('home');
+  playClip(`Awaken_${index + 1}`);
+
+  const count = placedCount();
+  if (count < dais.sockets.length) {
+    showHint(`The ruin stirs · ${count} of ${dais.sockets.length} lights home`);
+  } else {
+    showHint('The ground trembles…');
+    playClip('Finale');
+  }
 };
 
 const interaction = createInteraction({
   camera,
   physics,
-  pickups: props.pickups,
+  pickups,
   dials: props.dials,
+  sockets: dais.sockets,
+  isAvailable,
+  canThrow: () => !current, // no throwing the light away inside its world
+  onPickUp,
   onTurnDial: turnDial,
+  onPlace: place,
 });
 
-const canInteract = () => player.controls.isLocked && !current;
+mixer.addEventListener('finished', ({ action }) => {
+  if (action.getClip().name !== 'Finale') return;
+  finaleOpen = true;
+  showHint('The way home is open');
+});
+
+const canInteract = () => player.controls.isLocked && !ending;
 document.addEventListener('mousedown', (e) => {
   if (e.button === 0 && canInteract()) interaction.interact();
 });
@@ -294,17 +453,34 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'KeyE' && canInteract()) interaction.interact();
 });
 
-// a prop that goes through a doorway disappears into that world and energizes it
+// a light goes back to where it floats in its world
+const returnHome = (artifact) => {
+  artifact.state = 'inWorld';
+  artifact.body.setEnabled(false);
+  artifact.mesh.position.copy(artifact.spot);
+  artifact.appear = 0; // grows back in
+};
+
+// a prop that goes through a doorway disappears into that world and energizes it.
+// A light goes back to its own world.
 const sendIntoWorld = (pickup, world, elapsed) => {
   if (interaction.held === pickup) interaction.releaseHeld();
+  world.energy.value = Math.min(world.energy.value + 1, 1.5);
+  if (pickup.kind === 'artifact') {
+    returnHome(pickup);
+    return;
+  }
   pickup.state = 'gone';
   pickup.body.setEnabled(false);
   pickup.mesh.visible = false;
   pickup.respawnAt = elapsed + 3;
-  world.energy.value = Math.min(world.energy.value + 1, 1.5);
 };
 
 const respawn = (pickup) => {
+  if (pickup.kind === 'artifact') {
+    returnHome(pickup); // fell into the void: back to its world, not lost
+    return;
+  }
   const { body, home, homeRotation } = pickup;
   body.setEnabled(true);
   body.setBodyType(RAPIER.RigidBodyType.Dynamic, true);
@@ -318,17 +494,19 @@ const respawn = (pickup) => {
 };
 
 const updatePickups = (delta, elapsed) => {
-  for (const pickup of props.pickups) {
+  for (const pickup of pickups) {
     if (pickup.state === 'gone') {
       if (elapsed >= pickup.respawnAt) respawn(pickup);
       continue;
     }
+    // the trackers follow it everywhere (also a light waiting in its world), so they never jump
+    const loose = () => pickup.state === 'free' || pickup.state === 'held';
     worlds.forEach((world, i) => {
-      if (pickup.state !== 'gone' && pickup.doorways[i].update(pickup.mesh.position, false) === 'enter') {
+      if (pickup.doorways[i].update(pickup.mesh.position, false) === 'enter' && loose()) {
         sendIntoWorld(pickup, world, elapsed);
       }
     });
-    if (pickup.mesh.position.y < -30) respawn(pickup); // fell into the void
+    if (loose() && pickup.mesh.position.y < -30) respawn(pickup); // fell into the void
     if (pickup.appear < 1) {
       pickup.appear = Math.min(pickup.appear + delta * 3, 1);
       const grow = 1 - (1 - pickup.appear) ** 3; // ease out
@@ -337,13 +515,27 @@ const updatePickups = (delta, elapsed) => {
   }
 };
 
+// lights waiting in their worlds bob and turn; placed ones hover over their sockets
+const updateArtifacts = (delta, elapsed) => {
+  artifacts.forEach((artifact, i) => {
+    if (artifact.state === 'inWorld') {
+      artifact.mesh.position.copy(artifact.spot);
+      artifact.mesh.position.y += Math.sin(elapsed * 1.2 + i) * 0.25;
+      artifact.mesh.rotation.y += delta * 0.6;
+    } else if (artifact.state === 'placed') {
+      const { point } = dais.sockets[i];
+      artifact.mesh.position.lerp(point, 1 - Math.exp(-delta * 4)); // settles into place
+      artifact.mesh.position.y += Math.sin(elapsed * 1.5 + i) * 0.002;
+      artifact.mesh.rotation.y += delta * 0.8;
+    }
+    artifact.halo.rotation.z += delta * 1.5;
+  });
+};
+
 // --- going in and out of the worlds ---
 
-let current = null; // the world you're in, or null on the ruin
 let fovKick = 0;
 const flash = document.querySelector('.flash');
-const hint = document.querySelector('.hint');
-let hintTimeout = null;
 let controlsExplained = false;
 
 const playCrossingEffect = () => {
@@ -352,13 +544,6 @@ const playCrossingEffect = () => {
   void flash.offsetWidth;
   flash.classList.add('active');
   fovKick = 20; // the view stretches for a moment, then settles
-};
-
-const showHint = (text) => {
-  hint.textContent = text;
-  hint.classList.add('visible');
-  clearTimeout(hintTimeout);
-  hintTimeout = setTimeout(() => hint.classList.remove('visible'), 5000);
 };
 
 const enterWorld = (world) => {
@@ -371,13 +556,21 @@ const enterWorld = (world) => {
     lowest: world.lowest,
   });
   playCrossingEffect();
-  // the world's name (and its author), plus the controls the first time
+  // the world's name (and its author), whether its light is out there, plus the controls the first time
   let text = world.title;
+  const { state } = world.artifact.pickup;
+  if (state === 'inWorld') {
+    text += isTuned(world)
+      ? '\nSomething glows out there.'
+      : '\nNothing out here answers. Maybe this world needs tuning.';
+  } else if (state === 'placed') {
+    text += '\nIts light is home.';
+  }
   if (!controlsExplained) {
     controlsExplained = true;
     text += '\nWeightless. Fly where you look · Space to rise · the doorway leads back';
   }
-  showHint(text);
+  showHint(text, 7);
 };
 
 const exitWorld = () => {
@@ -388,6 +581,41 @@ const exitWorld = () => {
   playCrossingEffect();
 };
 
+// --- the end: through the final archway, rain on a window, and the credits ---
+
+const endingScreen = document.querySelector('.ending');
+const crosshair = document.querySelector('.crosshair');
+const endFade = uniform(0);
+let endFadeTarget = 0;
+
+const startEnding = () => {
+  ending = true;
+  playCrossingEffect();
+  endFadeTarget = 1;
+  renderPipeline.outputNode = endingOutput;
+  renderPipeline.needsUpdate = true;
+  tracker.classList.remove('visible');
+  crosshair.hidden = true;
+  player.controls.unlock();
+  endingScreen.hidden = false;
+  void endingScreen.offsetWidth;
+  endingScreen.classList.add('visible');
+};
+
+// click: back on the ruin, in front of the final archway
+endingScreen.addEventListener('click', () => {
+  endingScreen.classList.remove('visible');
+  endingScreen.hidden = true;
+  endFadeTarget = 0;
+  endFade.value = 0;
+  renderPipeline.outputNode = normalOutput;
+  renderPipeline.needsUpdate = true;
+  player.respawn();
+  crosshair.hidden = false;
+  ending = false;
+  renderer.domElement.requestPointerLock()?.catch?.(() => {});
+});
+
 // --- post-processing: bloom ---
 // Everything brighter than the threshold (glowing crystals, gems, bright doorways, Creation's light)
 // bleeds a soft glow into its surroundings. Tone mapping is applied after, to the result.
@@ -396,11 +624,25 @@ const renderPipeline = new THREE.RenderPipeline(renderer);
 const scenePass = pass(scene, camera, { samples: 4 }); // samples: keep the edges smooth
 const sceneColor = scenePass.getTextureNode('output');
 const glow = bloom(sceneColor, 0.45, 0.5, 0.8);
-renderPipeline.outputNode = sceneColor.add(glow);
+const normalOutput = sceneColor.add(glow);
+// at the end, the view fades into Heartfelt's rain, full screen (only built in when it's needed)
+const endingOutput = mix(normalOutput, endingRain, endFade);
+renderPipeline.outputNode = normalOutput;
 
 // inside a world the whole view is the shader: less glow, so it stays close to the original
 const BLOOM_OUTSIDE = 0.45;
 const BLOOM_INSIDE = 0.15;
+
+// the lights belong to a place: the one in its world only shows up there (and only when it's tuned),
+// the others are on the ruin. The one in your hand comes with you.
+const showArtifacts = (inWorld) => {
+  for (const artifact of artifacts) {
+    const { state } = artifact;
+    artifact.mesh.visible = inWorld
+      ? state === 'held' || (state === 'inWorld' && artifact.world === current && isTuned(current))
+      : state === 'free' || state === 'placed' || (state === 'held' && !current);
+  }
+};
 
 const render = () => {
   if (current) {
@@ -408,6 +650,7 @@ const render = () => {
     worldSphere.visible = false;
     current.opening.visible = false;
     scene.fog = voidFog;
+    showArtifacts(false);
     renderer.setRenderTarget(ruinTarget);
     renderer.render(scene, camera);
     renderer.setRenderTarget(null);
@@ -415,18 +658,22 @@ const render = () => {
     // 2. the world around you: only the archway you came through is left
     ruin.visible = false;
     props.group.visible = false;
+    dais.group.visible = false;
     for (const world of worlds) world.arch.visible = world === current;
     worldSphere.position.copy(camera.position);
     worldSphere.visible = true;
     current.opening.visible = true;
     scene.fog = null;
+    showArtifacts(true);
     glow.strength.value = BLOOM_INSIDE;
     renderPipeline.render();
     ruin.visible = true;
     props.group.visible = true;
+    dais.group.visible = true;
     for (const world of worlds) world.arch.visible = true;
   } else {
     scene.fog = voidFog;
+    showArtifacts(false);
     glow.strength.value = BLOOM_OUTSIDE;
     renderPipeline.render();
   }
@@ -447,6 +694,26 @@ for (const world of worlds) {
 }
 current = null;
 worldSphere.visible = false;
+
+// the same for what only shows up later: the lights, the final archway and the ending,
+// all put in front of the camera for one frame
+{
+  const { arch } = dais.finale;
+  const waitingY = arch.position.y;
+  arch.position.y = dais.finale.risenY;
+  for (const artifact of artifacts) artifact.state = 'free';
+  artifacts.forEach((artifact, i) => artifact.mesh.position.set(i - 1, 1.6, 2));
+  camera.position.set(0, 1.6, 4);
+  camera.lookAt(0, 1.6, 0);
+  renderPipeline.outputNode = endingOutput;
+  render();
+  renderPipeline.outputNode = normalOutput;
+  arch.position.y = waitingY;
+  for (const artifact of artifacts) {
+    artifact.state = 'inWorld';
+    artifact.mesh.position.copy(artifact.spot);
+  }
+}
 player.respawn(); // back to the start
 
 window.addEventListener('resize', () => {
@@ -474,16 +741,29 @@ renderer.setAnimationLoop(() => {
     world.energy.value *= Math.exp(-delta * 0.7);
     world.tuning.value += (world.tuningTarget - world.tuning.value) * (1 - Math.exp(-delta * 3));
     world.glowLight.intensity = 6 * (1 + world.energy.value * 2);
+    // the carving glows while the dial points where it does
+    const carvingGlow = isTuned(world) ? 3 : 0.4;
+    world.carving.emissiveIntensity += (carvingGlow - world.carving.emissiveIntensity) * (1 - Math.exp(-delta * 4));
   }
   for (const dial of props.dials) {
     dial.mesh.rotation.y += ((dial.angle ?? 0) - dial.mesh.rotation.y) * (1 - Math.exp(-delta * 10));
   }
+
+  // the dais: its animations, the awake rings turning, the ruin brightening with every light home
+  mixer.update(delta);
+  const placed = placedCount();
+  dais.ringParent.rotation.y += delta * (placed * 0.06 + (finaleOpen ? 0.15 : 0));
+  ambient.intensity += (AMBIENT + placed * 0.08 - ambient.intensity) * (1 - Math.exp(-delta * 2));
+  dais.finale.light.intensity = finaleOpen ? 8 : 0;
+  rainTime.value += delta;
+  endFade.value += (endFadeTarget - endFade.value) * (1 - Math.exp(-delta * 1.5));
 
   // physics: props, and you as a capsule that pushes them (not there while you're inside a world)
   interaction.update(canInteract());
   physics.setPlayer(camera.position, !current);
   physics.step(delta);
   updatePickups(delta, elapsed);
+  updateArtifacts(delta, elapsed);
 
   // every doorway keeps track of which side you're on, even the ones that don't matter right now
   let entered = null;
@@ -495,6 +775,7 @@ renderer.setAnimationLoop(() => {
   }
   if (exited) exitWorld();
   else if (entered) enterWorld(entered);
+  if (finaleDoorway.update(camera.position, false) === 'enter' && finaleOpen && !current && !ending) startEnding();
 
   fovKick *= Math.exp(-delta * 4);
   camera.fov = FOV + fovKick;
@@ -502,3 +783,4 @@ renderer.setAnimationLoop(() => {
 
   render();
 });
+

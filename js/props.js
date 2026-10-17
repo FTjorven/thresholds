@@ -5,7 +5,7 @@ import { stoneMaterial } from './materials.js';
 // Placeholders from primitives; the Blender versions replace them later.
 //
 // pickups: { mesh, kind, home, homeRotation } — physics bodies are added by the script
-// dials:   { mesh, world, index } — the part you click and that turns
+// dials:   { type: 'dial', mesh, world, index } — the part you click and that turns
 
 // props get picked up and moved around, so no darkening towards the floor
 const stone = (color) => stoneMaterial(color, { grounded: false });
@@ -102,7 +102,7 @@ export const buildProps = ({ worlds }) => {
     dialGroup.rotateY(-0.5);
     group.add(dialGroup);
     statics.push(pedestal);
-    dials.push({ mesh: dial, world, index: 0 });
+    dials.push({ type: 'dial', mesh: dial, world, index: 0 });
   });
 
   // loose stones around the dais

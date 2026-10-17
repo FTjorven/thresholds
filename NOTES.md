@@ -35,8 +35,9 @@ First person on a **floating ruin in a void**. Free-standing stone **archways** 
 2. [x] Walk through the archway: inside, Star Nest surrounds you (sphere around the camera, `rayOrigin = cameraPosition`), weightless flying, the archway shows the ruin from behind (screen-space portal), flash + view stretch on crossing.
 3. [x] Rapier physics + props around the archways: crystals/urns/stones to pick up and throw (into a doorway = energizes that world), a tuning dial per archway (changes a shader value). The player is a kinematic capsule that pushes props. Still open: the player walks through pillars (Rapier's character controller could replace the simple isGround walking).
 4. [x] More worlds: Seascape (ocean, includes the straight port) and Creation (2D, mapped onto directions around a far light) as "world" versions. All three archways open. Note: the artifact/unlock idea from stage 3 now needs a different goal, since every archway is already open.
-5. [ ] Blender ruin replaces the placeholder. Baking, animations.
-6. [ ] Polish: transitions (Heartfelt rain on the view), compute particles, sound?
+5. [x] The game: a light hidden in each world (`js/artifacts.js`), only there when the world is tuned to its key (carving on the archway shows the dial position). Carry it to its socket on the dais (`js/dais.js`): a ring wakes up (clip `Awaken_N`). All three: `Finale` clip raises Arch_4 out of the dais, a doorway into Heartfelt; walking through ends the game (full screen rain + credits). Placeholder animations are real AnimationClips on named objects, played by an AnimationMixer.
+6. [ ] Blender ruin replaces the placeholder. Baking, animations.
+7. [ ] Polish: transitions (Heartfelt rain on the view), compute particles, sound?
    - [x] Lighting: bloom + Neutral tone mapping (RenderPipeline), gradient void, rebalanced lights, noise on the stone (js/materials.js), shaders warmed up while loading
 
 ## 4. Code structure
@@ -51,9 +52,11 @@ js/physics.js         Rapier: static colliders from meshes with userData.static,
 js/props.js           crystals, urns, stones, tuning dials around the archways
 js/interaction.js     crosshair raycast, prompt, pick up / hold / throw, turning dials
 js/ruin.js            placeholder ruin: floor, archways, pillars, floating rocks, isGround()
+js/artifacts.js       the three lights hidden in the worlds, the carvings that show each world's key
+js/dais.js            sockets, rings, the final archway, and their AnimationClips (Awaken_1..3, Finale)
 js/shaders/<name>/fragment.wgsl    straight port (pixel ray)
 js/shaders/<name>/world.wgsl       world version (ray from the 3D scene), for starNest, seascape, creation
-js/shaders/heartfelt: ported, not used yet
+js/shaders/heartfelt/fragment.wgsl  2D: on the final archway's opening, and full screen at the end
 ```
 
 ## 5. For the Blender model
@@ -63,6 +66,8 @@ Keep these names so the code can find the parts (same names as the placeholder i
 - `Ruin_Floor`, `Ruin_Dais`
 - `Arch_1`, `Arch_2`, `Arch_3`, each with an `Arch_N_Portal` mesh: the flat opening inside the archway. Its **front** (normal) faces the side you look in from. Exclude it from the bake.
 - Units in meters, floor top at y = 0, archway openings about 1.9 m wide and 3.4 m tall.
+- The dais mechanism (same names as `js/dais.js`): `Dais_Rings` (empty, the code turns it), `Dais_Ring_1..3` inside it, `Dais_Socket_1..3`, `Arch_4` (with `Arch_4_Portal`, waits under the floor). Lights: `Artifact_1..3`.
+- Actions (exported as glTF animations, same names): `Awaken_1..3` (ring N rises into place), `Finale` (Arch_4 rises out of the dais). They play once and hold their last frame. Swap: `new THREE.AnimationMixer(gltf.scene)` and `gltf.animations` instead of `dais.group` / `dais.clips`.
 - Bake to `public/assets/baked.jpg`, export `public/assets/Ruin.glb` (animations included).
 
 Course pattern for loading a baked model: `threejs/projects/blender-three-bake-final` in https://github.com/devinekask/creative-development-f26

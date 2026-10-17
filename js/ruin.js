@@ -38,7 +38,7 @@ const createOpeningShape = () => {
   return shape;
 };
 
-const createArch = ({ name, material, sealedMaterial }) => {
+export const createArch = ({ name, material, sealedMaterial }) => {
   const arch = new THREE.Group();
   arch.name = name;
   const archStone = stone(0x8a8478);

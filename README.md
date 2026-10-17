@@ -13,17 +13,24 @@ One world behind each archway. For each shader, `fragment.wgsl` is the straight 
 - Star Nest by Kali (Pablo Roman Andrioli): https://www.shadertoy.com/view/XlfGRj: a nebula to float through
 - Seascape by Alexander Alekseev (TDM): https://www.shadertoy.com/view/Ms2SD1 (ported from the 2014 version): an open sea to skim over. The world version includes the straight port and reuses all its functions
 - Creation by Silexars (Danilo Guanabara): https://www.shadertoy.com/view/XsXXDn: the 2D original becomes a giant pulsing light far away, mapped onto the directions around you (stereographic projection). Fly towards it and it grows around you
+- Heartfelt by Martijn Steinrucken (BigWings): https://www.shadertoy.com/view/ltffzl: rain on a window, the way home. A 2D shader, so it gets pixel coordinates: on the final archway its position on the opening, at the very end the whole screen
 
-Ported, not used yet:
+## The game
 
-- Heartfelt by Martijn Steinrucken (BigWings): https://www.shadertoy.com/view/ltffzl
+Three lights were lost to the worlds beyond the arches. Bring them home.
+
+1. **Tune the world.** Each world hides a light, but it only shows up when the world is tuned right. The carving on the crown of each archway shows where its dial has to point, and lights up when it does.
+2. **Find the light.** Fly through the world until you find it: high up in Star Nest, low over the waves in Seascape, in front of the far light in Creation.
+3. **Carry it home.** Take it back through the doorway. Drop it into the void or throw it through a doorway, and it goes back to its world.
+4. **Place it on the dais.** Each light has its own socket. Placing it wakes a stone ring that rises and hangs, tilted, above the dais (an `AnimationMixer` clip). The ruin brightens with every light.
+5. **The way home.** With all three home, a fourth archway rises out of the dais. Through it: Heartfelt's rain, full screen, and the credits.
 
 ## Controls
 
 - Click to enter (locks the mouse)
 - Mouse: look around
 - WASD / arrow keys: walk, Shift: run, Space: jump
-- Click / E: pick up, throw, turn a dial (look at it, the crosshair turns into a ring)
+- Click / E: pick up, throw, turn a dial, place a light (look at it, the crosshair turns into a ring)
 - Walk through an archway to enter its world. Inside you're weightless: fly where you look, Space to rise, Shift to go faster. The archway leads back.
 - Esc: pause
 

@@ -72,6 +72,7 @@ export const createPhysics = async () => {
       accumulator -= STEP;
     }
     for (const { body, mesh } of bodies) {
+      if (!body.isEnabled()) continue; // put away (e.g. a light waiting in its world): the code places it
       const t = body.translation();
       const r = body.rotation();
       mesh.position.set(t.x, t.y, t.z);
