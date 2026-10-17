@@ -4,7 +4,7 @@ A first-person walk through Shadertoy worlds, built with Three.js `WebGPURendere
 
 You stand on a floating ruin in a void. Its stone archways are doorways into other worlds: each one is a Shadertoy shader, ported to WGSL. The shader doesn't sit on the doorway as a flat picture. It gets the real ray from your eye, so the world behind the doorway has depth and shifts as you move.
 
-Live: _TODO: add the deployed URL_
+Live: https://ftjorven.github.io/thresholds/
 
 ## Original shaders
 
