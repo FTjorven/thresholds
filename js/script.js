@@ -34,6 +34,7 @@ import { createPlayer } from './player.js';
 import { createDoorway } from './doorway.js';
 import { createInteraction } from './interaction.js';
 import { createAudio } from './audio.js';
+import { createDust } from './dust.js';
 
 if (!navigator.gpu) {
   document.querySelector('.no-webgpu').hidden = false;
@@ -256,6 +257,12 @@ worlds.forEach((world, i) => {
   world.glowLight.position.set(0, 1.6, 0.6);
   arch.add(world.glowLight);
 });
+
+// dust drifting into the doorways, simulated in a WebGPU compute shader (js/dust.js).
+// Part of the ruin, so it isn't there inside the worlds.
+const dust = createDust({ worlds });
+ruin.add(dust.object);
+dust.init(renderer);
 
 // Creation's light hangs 30 m behind its archway, at eye height
 worlds[2].arch.localToWorld(creationLight.value.set(0, 1.6, -30));
@@ -993,6 +1000,7 @@ renderer.setAnimationLoop(() => {
   updatePickups(delta, elapsed);
   updateArtifacts(delta, elapsed);
   updateShards(elapsed);
+  dust.update(renderer, delta, elapsed);
 
   // guidance, the edge, sound
   updateGuidance();
@@ -1019,6 +1027,7 @@ renderer.setAnimationLoop(() => {
 
   render();
 });
+
 
 
 

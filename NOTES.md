@@ -53,6 +53,7 @@ js/props.js           crystals, urns, stones, tuning dials around the archways
 js/interaction.js     crosshair raycast, prompt, pick up / hold / throw, turning dials
 js/ruin.js            placeholder ruin: floor, archways, pillars, floating rocks, isGround()
 js/artifacts.js       the three lights hidden in the worlds, the carvings that show each world's key
+js/dust.js            dust drifting into the doorways: a WebGPU compute shader (TSL), positions in a storage buffer
 js/audio.js           all sound, made in code (Web Audio): music, doorway hums, effects, wind, rain
 js/dais.js            loads the Blender model (dais.glb): archway, rings, sockets, final archway, their animations
 blender/              build_dais.py (models, bakes, animates, exports), dais.blend, dais_baked.jpg

@@ -56,6 +56,17 @@ Walking through the doorway puts you inside the world: a big sphere follows you,
   - Seascape: time of day (noon, golden hour, dusk)
   - Creation: the size of the light
 
+## WebGPU compute: dust drifting into the doorways
+
+`js/dust.js`: 450 motes of dust drift in front of the archways (150 each, in their world's color) and are slowly drawn into the doorways. They're simulated in a **WebGPU compute shader** written in TSL:
+
+- Their positions live in a GPU storage buffer (`instancedArray`), never on the CPU
+- Every frame a compute pass (`Fn(...)().compute(count)`, run with `renderer.compute()`) moves all of them: each mote drifts towards the doorway, steers to its own spot inside the opening, wanders a little, and starts over out in front once it's through
+- The sprites (`SpriteNodeMaterial`, one instanced `Sprite`) read their positions straight from that buffer, and fade in and out
+- An energized world (something thrown in, a dial turned) pulls its dust in much faster
+
+Compute shaders are a WebGPU feature: WebGL has nothing like them.
+
 ## Blender model
 
 `public/assets/dais.glb`, made in Blender by `blender/build_dais.py` (the scene is saved as `blender/dais.blend`):
@@ -107,6 +118,6 @@ Needs a browser with WebGPU (recent Chrome, Edge or Safari on desktop).
 
 ## Built with
 
-- [Three.js](https://threejs.org) `WebGPURenderer`, TSL / WGSL
+- [Three.js](https://threejs.org) `WebGPURenderer`, TSL / WGSL, WebGPU compute shaders
 - [Rapier](https://rapier.rs) physics (`@dimforge/rapier3d-compat`)
 - [Vite](https://vite.dev)
