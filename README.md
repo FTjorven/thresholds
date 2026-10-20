@@ -58,7 +58,7 @@ Walking through the doorway puts you inside the world: a big sphere follows you,
 
 ## Breaking things
 
-Urns, crystals and stones shatter when they hit something hard enough: a sudden drop in speed between two frames. The pieces are small Rapier bodies that bounce around and shrink away, and the prop grows back at its place a few seconds later. Urns break easily (even dropped), stones only when thrown hard.
+Urns, crystals and stones shatter when they fly into something hard enough: a sudden change in velocity between two frames (stopping, or bouncing off), while they were moving fast. Bumping into them while walking doesn't break them. The pieces are small Rapier bodies that bounce around and shrink away, and the prop grows back at its place a few seconds later. Urns and crystals break easily, stones only when thrown hard.
 
 ## The edge
 

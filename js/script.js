@@ -506,10 +506,11 @@ const sendIntoWorld = (pickup, world, elapsed) => {
 };
 
 // --- breaking: urns, crystals and stones shatter when they hit something hard enough ---
-// A hit shows up as a sudden drop in speed between two frames. The pieces are small physics
+// A hit shows up as a sudden change in velocity between two frames: stopping, or bouncing off
+// (a bounce flips the direction, even when the speed along the floor stays). The pieces are small physics
 // bodies that bounce around, then shrink away; the prop grows back at its place a little later.
 
-const BREAK_SPEED = { urn: 4, crystal: 6, stone: 7.5 }; // m/s lost in one frame
+const BREAK_SPEED = { urn: 3.5, crystal: 4.5, stone: 7 }; // m/s of velocity change in one frame
 const SHARD_LIFE = 3; // seconds
 const shards = [];
 const shardGeometry = new THREE.TetrahedronGeometry(1, 0);
@@ -552,14 +553,17 @@ const updateShards = (elapsed) => {
   }
 };
 
-// a sudden stop: break, or just knock
+// a sudden change in velocity: break, or just knock
 const checkImpact = (pickup, elapsed) => {
   const v = pickup.body.linvel();
-  const speed = Math.hypot(v.x, v.y, v.z);
-  const lost = (pickup.lastSpeed ?? 0) - speed;
-  pickup.lastSpeed = speed;
-  if (lost > BREAK_SPEED[pickup.kind]) shatter(pickup, elapsed);
-  else if (lost > 1.2) audio.play('impact', lost, pickup.mesh.position.clone());
+  const last = pickup.lastVelocity;
+  pickup.lastVelocity = { x: v.x, y: v.y, z: v.z };
+  if (!last) return; // just thrown: nothing to compare with yet
+  const change = Math.hypot(v.x - last.x, v.y - last.y, v.z - last.z);
+  // only when it was flying into something: being bumped from standing still (by you) doesn't count
+  const speedBefore = Math.hypot(last.x, last.y, last.z);
+  if (change > BREAK_SPEED[pickup.kind] && speedBefore > BREAK_SPEED[pickup.kind]) shatter(pickup, elapsed);
+  else if (change > 1.2 && speedBefore > 1.2) audio.play('impact', change, pickup.mesh.position.clone());
 };
 
 const respawn = (pickup) => {
@@ -577,7 +581,7 @@ const respawn = (pickup) => {
   pickup.state = 'free';
   pickup.mesh.visible = true;
   pickup.appear = 0; // grows back in
-  pickup.lastSpeed = 0;
+  pickup.lastVelocity = null;
 };
 
 const updatePickups = (delta, elapsed) => {
@@ -595,7 +599,7 @@ const updatePickups = (delta, elapsed) => {
     });
     if (loose() && pickup.mesh.position.y < -30) respawn(pickup); // fell into the void
     if (pickup.state === 'free' && pickup.kind !== 'artifact') checkImpact(pickup, elapsed);
-    else pickup.lastSpeed = 0;
+    else pickup.lastVelocity = null;
     if (pickup.appear < 1) {
       pickup.appear = Math.min(pickup.appear + delta * 3, 1);
       const grow = 1 - (1 - pickup.appear) ** 3; // ease out
@@ -1005,5 +1009,6 @@ renderer.setAnimationLoop(() => {
 
   render();
 });
+
 
 
