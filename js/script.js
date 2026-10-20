@@ -28,7 +28,7 @@ import heartfeltShader from './shaders/heartfelt/fragment.wgsl?raw';
 import { buildRuin, isInOpening } from './ruin.js';
 import { buildProps } from './props.js';
 import { buildArtifacts } from './artifacts.js';
-import { buildDais } from './dais.js';
+import { loadDais } from './dais.js';
 import { createPhysics } from './physics.js';
 import { createPlayer } from './player.js';
 import { createDoorway } from './doorway.js';
@@ -271,11 +271,21 @@ const { group: artifactGroup, artifacts } = buildArtifacts({ worlds });
 scene.add(artifactGroup);
 worlds.forEach((world, i) => (world.artifact.pickup = artifacts[i]));
 
-const dais = buildDais({ worlds, finaleMaterial });
+// the Blender model: the dais mechanism, and the archway for every doorway
+const dais = await loadDais({ worlds, finaleMaterial });
 scene.add(dais.group);
+
+// the doorways get the Blender archway; their primitive blocks stay, invisible, as colliders
+for (const world of worlds) {
+  for (const part of world.arch.children) {
+    if (/_(Pillar|Top|Step)$/.test(part.name)) part.visible = false;
+  }
+  world.arch.add(dais.archModel.clone());
+}
 const finaleDoorway = createDoorway({ arch: dais.finale.arch, isInOpening });
 
-// the Blender model's animations replace these clips later, with the same names
+// the Blender model's animations, started by the game: a ring wakes up when its light is placed,
+// the final archway rises when all three are home
 const mixer = new THREE.AnimationMixer(dais.group);
 const playClip = (name) => {
   const action = mixer.clipAction(THREE.AnimationClip.findByName(dais.clips, name));
@@ -1009,6 +1019,7 @@ renderer.setAnimationLoop(() => {
 
   render();
 });
+
 
 
 

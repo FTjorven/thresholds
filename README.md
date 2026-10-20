@@ -22,7 +22,7 @@ Three lights were lost to the worlds beyond the arches. Bring them home.
 1. **Tune the world.** Each world hides a light, but it only shows up when the world is tuned right. The carving on the crown of each archway shows where its dial has to point, and lights up when it does.
 2. **Find the light.** Fly through the world until you find it: high up in Star Nest, low over the waves in Seascape, in front of the far light in Creation.
 3. **Carry it home.** Take it back through the doorway. Drop it into the void or throw it through a doorway, and it goes back to its world.
-4. **Place it on the dais.** Each light has its own socket. Placing it wakes a stone ring that rises and hangs, tilted, above the dais (an `AnimationMixer` clip). The ruin brightens with every light.
+4. **Place it on the dais.** Each light has its own socket. Placing it wakes a stone ring that rises and hangs, tilted, above the dais (an animation from the Blender model). The ruin brightens with every light.
 5. **The way home.** With all three home, a fourth archway rises out of the dais. Through it: Heartfelt's rain, full screen, and the credits.
 
 Along the way, a line at the top tells you the next step, and a marker points at where to go (the world's light, the doorway home, the socket), pinned to the edge of the screen when it's out of view.
@@ -55,6 +55,22 @@ Walking through the doorway puts you inside the world: a big sphere follows you,
   - Star Nest: the fractal's "magic formula" parameter (0.53 original, 0.38 glowing nebula, 0.565 star cluster)
   - Seascape: time of day (noon, golden hour, dusk)
   - Creation: the size of the light
+
+## Blender model
+
+`public/assets/dais.glb`, made in Blender by `blender/build_dais.py` (the scene is saved as `blender/dais.blend`):
+
+- **The archway** (pillars with plinths and capitals, the round top, a keystone with the tuning carving on it, the step), used for all four doorways. The doorway opening itself stays in code, because it carries the shader
+- **The dais mechanism**: three stone rings with glowing studs lying around the dais, three sockets for the lights, and the final archway waiting under the floor
+
+**Baking**: all stone parts share one 2048×2048 texture (`blender/dais_baked.jpg`). They're unwrapped together, then Cycles bakes the procedural stone color (two layers of noise) and the ambient occlusion, which are multiplied into the final texture. The rings are baked in the pose they end up in (hanging above the dais), the final archway standing on the dais, with a helper floor and dais for the occlusion to touch. In the game the scene's lights shine on top of the baked texture.
+
+**Animations**: four Blender actions, exported as glTF animations and played by an `AnimationMixer` when the game says so:
+
+- `Awaken_1`, `Awaken_2`, `Awaken_3`: placing a light in its socket plays its ring's action: the ring rises from the floor, turns one and a half times and settles, tilted, above the dais. Afterwards the code turns the rings' parent (`Dais_Rings`) slowly, faster with every light
+- `Finale`: placing the third light plays it: the final archway grinds up out of the dais, shaking. When it ends (the mixer's `finished` event), its doorway opens
+
+Each action plays once and holds its last frame (`LoopOnce`, `clampWhenFinished`). The glowing parts (studs, socket rings) get their world's color in code, and brighten when their light is home.
 
 ## Breaking things
 

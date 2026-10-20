@@ -36,7 +36,7 @@ First person on a **floating ruin in a void**. Free-standing stone **archways** 
 3. [x] Rapier physics + props around the archways: crystals/urns/stones to pick up and throw (into a doorway = energizes that world), a tuning dial per archway (changes a shader value). The player is a kinematic capsule that pushes props. Still open: the player walks through pillars (Rapier's character controller could replace the simple isGround walking).
 4. [x] More worlds: Seascape (ocean, includes the straight port) and Creation (2D, mapped onto directions around a far light) as "world" versions. All three archways open. Note: the artifact/unlock idea from stage 3 now needs a different goal, since every archway is already open.
 5. [x] The game: a light hidden in each world (`js/artifacts.js`), only there when the world is tuned to its key (carving on the archway shows the dial position). Carry it to its socket on the dais (`js/dais.js`): a ring wakes up (clip `Awaken_N`). All three: `Finale` clip raises Arch_4 out of the dais, a doorway into Heartfelt; walking through ends the game (full screen rain + credits). Placeholder animations are real AnimationClips on named objects, played by an AnimationMixer.
-6. [ ] Blender ruin replaces the placeholder. Baking, animations.
+6. [x] Blender model (`blender/build_dais.py` → `public/assets/dais.glb`): archway for all four doorways, dais rings + sockets + final archway, baked texture (stone color x AO), actions Awaken_1..3 + Finale. The placeholder archway blocks stay as invisible colliders. Rebuild: `/Applications/Blender.app/Contents/MacOS/Blender --background --python blender/build_dais.py` (the 2048 bake takes a while on the CPU).
 7. [ ] Polish: transitions (Heartfelt rain on the view), compute particles, sound?
    - [x] Lighting: bloom + Neutral tone mapping (RenderPipeline), gradient void, rebalanced lights, noise on the stone (js/materials.js), shaders warmed up while loading
 
@@ -54,7 +54,8 @@ js/interaction.js     crosshair raycast, prompt, pick up / hold / throw, turning
 js/ruin.js            placeholder ruin: floor, archways, pillars, floating rocks, isGround()
 js/artifacts.js       the three lights hidden in the worlds, the carvings that show each world's key
 js/audio.js           all sound, made in code (Web Audio): music, doorway hums, effects, wind, rain
-js/dais.js            sockets, rings, the final archway, and their AnimationClips (Awaken_1..3, Finale)
+js/dais.js            loads the Blender model (dais.glb): archway, rings, sockets, final archway, their animations
+blender/              build_dais.py (models, bakes, animates, exports), dais.blend, dais_baked.jpg
 js/shaders/<name>/fragment.wgsl    straight port (pixel ray)
 js/shaders/<name>/world.wgsl       world version (ray from the 3D scene), for starNest, seascape, creation
 js/shaders/heartfelt/fragment.wgsl  2D: on the final archway's opening, and full screen at the end

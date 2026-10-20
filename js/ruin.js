@@ -1,10 +1,10 @@
 import * as THREE from 'three/webgpu';
 import { stoneMaterial as stone } from './materials.js';
 
-// Placeholder ruin built from primitives, in meters, floor at y = 0.
+// The ruin, in meters, floor at y = 0: a floating stone island in a void with archways.
+// Built from primitives; the archways get the Blender model on top (js/dais.js), and their
+// primitive blocks stay as invisible colliders.
 // Meshes with userData.static get a matching physics collider (boxes and cylinders only).
-// A floating stone island in a void with archways. Your Blender model replaces this later:
-// keep the names (Ruin_Floor, Arch_1_Portal, ...) so the code can find the parts.
 
 
 // small seeded random, so the ruin looks the same on every load
@@ -38,6 +38,14 @@ const createOpeningShape = () => {
   return shape;
 };
 
+// the doorway itself: a window into a shader world
+export const createOpening = (name, material) => {
+  const opening = new THREE.Mesh(new THREE.ShapeGeometry(createOpeningShape(), 24), material);
+  opening.name = `${name}_Portal`;
+  opening.position.y = OPENING_Y;
+  return opening;
+};
+
 export const createArch = ({ name, material, sealedMaterial }) => {
   const arch = new THREE.Group();
   arch.name = name;
@@ -63,10 +71,8 @@ export const createArch = ({ name, material, sealedMaterial }) => {
   step.userData.static = true;
   arch.add(step);
 
-  // the doorway itself: a window into a shader world, or sealed stone for worlds that aren't open yet
-  const opening = new THREE.Mesh(new THREE.ShapeGeometry(createOpeningShape(), 24), material ?? sealedMaterial);
-  opening.name = `${name}_Portal`;
-  opening.position.y = OPENING_Y;
+  // the doorway: a window into a shader world, or sealed stone for worlds that aren't open yet
+  const opening = createOpening(name, material ?? sealedMaterial);
   arch.add(opening);
 
   return { arch, opening };

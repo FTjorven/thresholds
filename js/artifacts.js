@@ -36,7 +36,7 @@ const createArtifact = (index, color) => {
 // Built like the dial and rotated a quarter turn, so "towards you" on the dial is "down" on the carving.
 const addCarving = (world) => {
   const stand = new THREE.Group();
-  stand.position.set(0, 3.7, 0.32); // the front of the archway's crown
+  stand.position.set(0, 3.85, 0.37); // on the front of the archway's keystone
   stand.rotation.x = Math.PI / 2;
   const turn = new THREE.Group();
   turn.rotation.y = -(world.key * Math.PI * 2) / world.tunings.length; // same angle as the dial at that setting
