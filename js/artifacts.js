@@ -40,10 +40,11 @@ const addCarving = (world) => {
   stand.rotation.x = Math.PI / 2;
   const turn = new THREE.Group();
   turn.rotation.y = -(world.key * Math.PI * 2) / world.tunings.length; // same angle as the dial at that setting
-  const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.04, 16), stoneMaterial(0x5e5850, { grounded: false }));
+  // the same size as the dial, so they're easy to compare
+  const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.05, 16), stoneMaterial(0x5e5850, { grounded: false }));
   const material = new THREE.MeshStandardMaterial({ color: world.glow, emissive: world.glow, emissiveIntensity: 0.4 });
-  const marker = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.025, 0.1), material);
-  marker.position.set(0, 0.03, 0.06);
+  const marker = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.035, 0.16), material);
+  marker.position.set(0, 0.035, 0.09);
   turn.add(disc, marker);
   stand.add(turn);
   world.arch.add(stand);

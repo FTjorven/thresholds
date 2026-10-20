@@ -5,14 +5,13 @@ import { PointerLockControls } from 'three/addons/controls/PointerLockControls.j
 // Two modes:
 // - walking: simple gravity, you stand on whatever isGround() says is below you, otherwise you fall
 // - flying: weightless inside a shader world, you glide where you look, Space to rise
-// Physics (Rapier) replaces the walking part later, once there are objects to pick up and throw.
 
 const EYE_HEIGHT = 1.6;
 const WALK_SPEED = 3;
 const RUN_SPEED = 6;
 const JUMP_SPEED = 4.5;
 const GRAVITY = 12;
-const RESPAWN_BELOW = -40;
+const RESPAWN_BELOW = -40; // a safety net: the script brings you back sooner, with a message
 
 const FLY_SPEED = 4;
 const FLY_FAST_SPEED = 9;
@@ -24,7 +23,8 @@ const rightDir = new THREE.Vector3();
 const targetVelocity = new THREE.Vector3();
 const toHome = new THREE.Vector3();
 
-export const createPlayer = ({ camera, domElement, spawn, isGround }) => {
+// onLand(fallSpeed): you hit the ground after a jump or a fall
+export const createPlayer = ({ camera, domElement, spawn, isGround, onLand = () => {} }) => {
   const controls = new PointerLockControls(camera, domElement);
   const keys = new Set();
   const velocity = new THREE.Vector3();
@@ -71,6 +71,7 @@ export const createPlayer = ({ camera, domElement, spawn, isGround }) => {
     const groundY = isGround(camera.position.x, camera.position.z);
     // only snap onto the ground if you're near it (falling past an edge shouldn't teleport you up)
     if (groundY !== null && feet <= groundY && feet > groundY - 0.5) {
+      if (!onGround) onLand(-velocity.y);
       camera.position.y = groundY + EYE_HEIGHT;
       velocity.y = 0;
       onGround = true;
@@ -135,8 +136,24 @@ export const createPlayer = ({ camera, domElement, spawn, isGround }) => {
       velocity.copy(forwardDir).multiplyScalar(forward * speed).addScaledVector(rightDir, right * speed);
     } else {
       velocity.set(0, Math.min(velocity.y, 0), 0);
+      // coming out of a world low (doorways reach a bit below the floor): stand on the floor,
+      // instead of starting below it and falling through
+      const groundY = isGround(camera.position.x, camera.position.z);
+      if (groundY !== null && camera.position.y < groundY + EYE_HEIGHT) {
+        camera.position.y = groundY + EYE_HEIGHT;
+        velocity.y = 0;
+        onGround = true;
+      }
     }
   };
 
-  return { controls, update, respawn, setFlying };
+  return {
+    controls,
+    update,
+    respawn,
+    setFlying,
+    get onGround() {
+      return onGround && !flying;
+    },
+  };
 };

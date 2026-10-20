@@ -33,6 +33,7 @@ import { createPhysics } from './physics.js';
 import { createPlayer } from './player.js';
 import { createDoorway } from './doorway.js';
 import { createInteraction } from './interaction.js';
+import { createAudio } from './audio.js';
 
 if (!navigator.gpu) {
   document.querySelector('.no-webgpu').hidden = false;
@@ -325,6 +326,21 @@ for (const artifact of artifacts) {
 }
 const pickups = [...props.pickups, ...artifacts];
 
+// --- sound: music, effects and a hum from every open doorway (all made in code, see js/audio.js) ---
+
+const audio = createAudio({ camera });
+for (const world of worlds) {
+  const source = new THREE.Object3D();
+  source.position.set(0, 1.6, 0); // the middle of the opening
+  world.arch.add(source);
+  world.hum = audio.addHum(source, { 'Star Nest · Kali': -24, 'Seascape · TDM': -19, 'Creation · Silexars': -17 }[world.title]);
+}
+const finaleHumSource = new THREE.Object3D();
+finaleHumSource.position.set(0, 1.6, 0);
+dais.finale.arch.add(finaleHumSource);
+const finaleHum = audio.addHum(finaleHumSource, -12, 0.22);
+finaleHum.level = 0; // silent until the archway opens
+
 // --- player ---
 
 const player = createPlayer({
@@ -332,11 +348,13 @@ const player = createPlayer({
   domElement: renderer.domElement,
   spawn: new THREE.Vector3(0, 0, 0.8), // on the dais, facing the first archway
   isGround,
+  onLand: (speed) => speed > 3 && audio.play('land'),
 });
 
 // start screen: click to lock the mouse, Esc to pause
 const startScreen = document.querySelector('.start');
 startScreen.addEventListener('click', () => {
+  audio.start(); // browsers only allow sound after a click
   // the browser can refuse (e.g. right after pressing Esc): just stay on the start screen
   renderer.domElement.requestPointerLock()?.catch?.(() => {});
 });
@@ -383,9 +401,11 @@ const turnDial = (dial) => {
   world.tuningTarget = world.tunings[dial.index];
   dial.angle = (dial.angle ?? 0) - (Math.PI * 2) / world.tunings.length; // always turns the same way
   world.energy.value = Math.max(world.energy.value, 0.3); // a little flare, so you see which world changed
+  audio.play('dial', dial.index);
   if (isTuned(world) && world.artifact.pickup.state === 'inWorld') {
     world.energy.value = Math.max(world.energy.value, 0.8);
-    showHint('The carving above the archway lights up');
+    audio.play('tuned');
+    showHint(`The carving lights up: ${world.title.split(' ·')[0]} is tuned. Step through to find its light.`);
   }
 };
 
@@ -400,6 +420,7 @@ const isAvailable = (thing) => {
 };
 
 const onPickUp = (pickup) => {
+  audio.play('pickUp');
   if (pickup.kind === 'artifact' && current) showHint(`The ${pickup.label}. Carry it home through the doorway.`);
 };
 
@@ -416,6 +437,8 @@ const place = (artifact, socket) => {
   dais.rings[index].studMaterial.emissiveIntensity = 2.5;
   trackerLights[index].classList.add('home');
   playClip(`Awaken_${index + 1}`);
+  audio.play('place', index);
+  audio.play('rumble', 4, 0.4);
 
   const count = placedCount();
   if (count < dais.sockets.length) {
@@ -423,6 +446,7 @@ const place = (artifact, socket) => {
   } else {
     showHint('The ground trembles…');
     playClip('Finale');
+    audio.play('rumble', 5.5, 0.9);
   }
 };
 
@@ -435,6 +459,7 @@ const interaction = createInteraction({
   isAvailable,
   canThrow: () => !current, // no throwing the light away inside its world
   onPickUp,
+  onThrow: () => audio.play('throw'),
   onTurnDial: turnDial,
   onPlace: place,
 });
@@ -442,7 +467,9 @@ const interaction = createInteraction({
 mixer.addEventListener('finished', ({ action }) => {
   if (action.getClip().name !== 'Finale') return;
   finaleOpen = true;
-  showHint('The way home is open');
+  finaleHum.level = 1;
+  audio.play('opened');
+  showHint('The way home is open: walk through the archway on the dais');
 });
 
 const canInteract = () => player.controls.isLocked && !ending;
@@ -451,6 +478,7 @@ document.addEventListener('mousedown', (e) => {
 });
 window.addEventListener('keydown', (e) => {
   if (e.code === 'KeyE' && canInteract()) interaction.interact();
+  if (e.code === 'KeyM') showHint(audio.toggleMute() ? 'Sound off · M to turn it back on' : 'Sound on', 2);
 });
 
 // a light goes back to where it floats in its world
@@ -466,6 +494,7 @@ const returnHome = (artifact) => {
 const sendIntoWorld = (pickup, world, elapsed) => {
   if (interaction.held === pickup) interaction.releaseHeld();
   world.energy.value = Math.min(world.energy.value + 1, 1.5);
+  audio.play('swallowed', pickup.mesh.position);
   if (pickup.kind === 'artifact') {
     returnHome(pickup);
     return;
@@ -474,6 +503,63 @@ const sendIntoWorld = (pickup, world, elapsed) => {
   pickup.body.setEnabled(false);
   pickup.mesh.visible = false;
   pickup.respawnAt = elapsed + 3;
+};
+
+// --- breaking: urns, crystals and stones shatter when they hit something hard enough ---
+// A hit shows up as a sudden drop in speed between two frames. The pieces are small physics
+// bodies that bounce around, then shrink away; the prop grows back at its place a little later.
+
+const BREAK_SPEED = { urn: 4, crystal: 6, stone: 7.5 }; // m/s lost in one frame
+const SHARD_LIFE = 3; // seconds
+const shards = [];
+const shardGeometry = new THREE.TetrahedronGeometry(1, 0);
+
+const shatter = (pickup, elapsed) => {
+  const { mesh, body, kind } = pickup;
+  audio.play('shatter', kind, mesh.position.clone());
+  const velocity = body.linvel();
+  const size = { urn: 0.07, crystal: 0.05, stone: 0.05 }[kind];
+  const count = kind === 'urn' ? 10 : 7;
+  for (let i = 0; i < count; i++) {
+    const shard = new THREE.Mesh(shardGeometry, mesh.material);
+    shard.scale.setScalar(size * (0.6 + Math.random() * 0.8));
+    shard.position.copy(mesh.position).add(new THREE.Vector3().randomDirection().multiplyScalar(0.08));
+    shard.rotation.set(Math.random() * 6, Math.random() * 6, Math.random() * 6);
+    shard.castShadow = true;
+    props.group.add(shard);
+    const shardBody = physics.addDynamic(shard, RAPIER.ColliderDesc.ball(shard.scale.x * 0.6), { mass: 0.05 });
+    const burst = new THREE.Vector3().randomDirection().multiplyScalar(1.5 + Math.random() * 2);
+    shardBody.setLinvel({ x: velocity.x * 0.3 + burst.x, y: Math.abs(burst.y) + 1, z: velocity.z * 0.3 + burst.z }, true);
+    shards.push({ mesh: shard, body: shardBody, size: shard.scale.x, until: elapsed + SHARD_LIFE + Math.random() });
+  }
+  pickup.state = 'gone';
+  body.setEnabled(false);
+  mesh.visible = false;
+  pickup.respawnAt = elapsed + 4;
+};
+
+const updateShards = (elapsed) => {
+  for (let i = shards.length - 1; i >= 0; i--) {
+    const shard = shards[i];
+    const left = shard.until - elapsed;
+    if (left < 0) {
+      physics.remove(shard.body);
+      props.group.remove(shard.mesh);
+      shards.splice(i, 1);
+    } else if (left < 0.5) {
+      shard.mesh.scale.setScalar(shard.size * (left / 0.5)); // shrink away
+    }
+  }
+};
+
+// a sudden stop: break, or just knock
+const checkImpact = (pickup, elapsed) => {
+  const v = pickup.body.linvel();
+  const speed = Math.hypot(v.x, v.y, v.z);
+  const lost = (pickup.lastSpeed ?? 0) - speed;
+  pickup.lastSpeed = speed;
+  if (lost > BREAK_SPEED[pickup.kind]) shatter(pickup, elapsed);
+  else if (lost > 1.2) audio.play('impact', lost, pickup.mesh.position.clone());
 };
 
 const respawn = (pickup) => {
@@ -491,6 +577,7 @@ const respawn = (pickup) => {
   pickup.state = 'free';
   pickup.mesh.visible = true;
   pickup.appear = 0; // grows back in
+  pickup.lastSpeed = 0;
 };
 
 const updatePickups = (delta, elapsed) => {
@@ -507,6 +594,8 @@ const updatePickups = (delta, elapsed) => {
       }
     });
     if (loose() && pickup.mesh.position.y < -30) respawn(pickup); // fell into the void
+    if (pickup.state === 'free' && pickup.kind !== 'artifact') checkImpact(pickup, elapsed);
+    else pickup.lastSpeed = 0;
     if (pickup.appear < 1) {
       pickup.appear = Math.min(pickup.appear + delta * 3, 1);
       const grow = 1 - (1 - pickup.appear) ** 3; // ease out
@@ -556,13 +645,14 @@ const enterWorld = (world) => {
     lowest: world.lowest,
   });
   playCrossingEffect();
+  audio.play('doorway', true);
   // the world's name (and its author), whether its light is out there, plus the controls the first time
   let text = world.title;
   const { state } = world.artifact.pickup;
   if (state === 'inWorld') {
     text += isTuned(world)
-      ? '\nSomething glows out there.'
-      : '\nNothing out here answers. Maybe this world needs tuning.';
+      ? '\nSomething glows out there. Follow the marker.'
+      : '\nNothing out here answers. Go back and turn its dial to match the carving above the archway.';
   } else if (state === 'placed') {
     text += '\nIts light is home.';
   }
@@ -579,6 +669,7 @@ const exitWorld = () => {
   worldSphere.visible = false;
   player.setFlying(false);
   playCrossingEffect();
+  audio.play('doorway', false);
 };
 
 // --- the end: through the final archway, rain on a window, and the credits ---
@@ -604,6 +695,7 @@ const startEnding = () => {
 
 // click: back on the ruin, in front of the final archway
 endingScreen.addEventListener('click', () => {
+  if (!ending) return;
   endingScreen.classList.remove('visible');
   endingScreen.hidden = true;
   endFadeTarget = 0;
@@ -615,6 +707,128 @@ endingScreen.addEventListener('click', () => {
   ending = false;
   renderer.domElement.requestPointerLock()?.catch?.(() => {});
 });
+
+// --- guidance: the next step at the top, and a marker pointing where to go ---
+
+const objective = document.querySelector('.objective');
+const marker = document.querySelector('.marker');
+const markerDistance = marker.querySelector('.marker-distance');
+const worldName = (world) => world.title.split(' ·')[0];
+const center = (doorway) => doorway.getCenter(new THREE.Vector3());
+
+// what to do now: { text, at (a point in the scene, or none), color }
+const getGoal = () => {
+  if (ending) return { text: '' };
+  const { held } = interaction;
+  const heldLight = held?.kind === 'artifact' ? held : null;
+
+  if (current) {
+    const light = current.artifact.pickup;
+    const home = center(current.doorway);
+    if (heldLight) return { text: `Carry the ${heldLight.label} home through the doorway`, at: home, color: heldLight.world.glow };
+    if (light.state !== 'inWorld') return { text: 'Head back through the doorway', at: home };
+    if (isTuned(current)) return { text: `Find the ${light.label}, glowing somewhere out here`, at: light.mesh.position, color: current.glow };
+    return { text: `Nothing here yet. Go back and tune ${worldName(current)}: match its dial to the carving above the archway`, at: home };
+  }
+
+  if (heldLight) {
+    const socket = dais.sockets[artifacts.indexOf(heldLight)];
+    return { text: `Place the ${heldLight.label} in its socket on the dais`, at: socket.point, color: heldLight.world.glow };
+  }
+  if (finaleOpen) return { text: 'Walk through the archway on the dais', at: center(finaleDoorway), color: 0xa8c0ff };
+  if (placedCount() === dais.sockets.length) return { text: '' }; // the archway is rising
+  const loose = artifacts.find((artifact) => artifact.state === 'free');
+  if (loose) return { text: `Bring the ${loose.label} to the dais`, at: loose.mesh.position, color: loose.world.glow };
+  const waiting = worlds.find((world) => isTuned(world) && world.artifact.pickup.state === 'inWorld');
+  if (waiting) {
+    return { text: `${worldName(waiting)} is tuned: step through its archway and find its light`, at: center(waiting.doorway), color: waiting.glow };
+  }
+  return { text: 'Turn the dial beside an archway until its pointer matches the carving above the arch' };
+};
+
+const projected = new THREE.Vector3();
+const viewDirection = new THREE.Vector3();
+const toGoal = new THREE.Vector3();
+
+const updateGuidance = () => {
+  const goal = getGoal();
+  if (objective.textContent !== goal.text) objective.textContent = goal.text;
+
+  const distance = goal.at ? camera.position.distanceTo(goal.at) : 0;
+  const show = goal.at && distance > 1.5 && player.controls.isLocked;
+  marker.classList.toggle('visible', Boolean(show));
+  if (!show) return;
+  // where it is on screen; behind you or off screen, the marker stays at the edge, on its side
+  projected.copy(goal.at).project(camera);
+  camera.getWorldDirection(viewDirection);
+  const behind = toGoal.subVectors(goal.at, camera.position).dot(viewDirection) < 0;
+  let { x, y } = projected;
+  if (behind) {
+    x = -x;
+    y = -y;
+  }
+  const edge = Math.max(Math.abs(x), Math.abs(y), 1e-3);
+  if (behind || edge > 0.88) {
+    x *= 0.88 / edge;
+    y *= 0.88 / edge;
+  }
+  marker.style.transform = `translate(${(x * 0.5 + 0.5) * window.innerWidth}px, ${(-y * 0.5 + 0.5) * window.innerHeight}px) translate(-50%, -50%)`;
+  marker.style.color = `#${new THREE.Color(goal.color ?? 0xe6e2f0).getHexString()}`;
+  markerDistance.textContent = `${Math.round(distance)} m`;
+};
+
+// --- the edge of the island, and falling off it ---
+// Near the edge the view darkens at its sides and the wind picks up; falling, the void closes in,
+// and a little further down it sends you back to the dais.
+
+const edgeVignette = document.querySelector('.edge-vignette');
+const fallFade = document.querySelector('.fall-fade');
+const EYE = 1.6;
+const ISLAND_SAFE = 5.6; // meters from the center where the warning starts
+const ISLAND_EDGE = 6.7;
+const FALL_RESPAWN = -14; // feet height
+let lastEdgeHint = -Infinity;
+
+// returns how windy it is (0..1)
+const updateEdge = (elapsed) => {
+  if (current || ending) {
+    edgeVignette.style.opacity = 0;
+    fallFade.style.opacity = 0;
+    return 0;
+  }
+  const feet = camera.position.y - EYE;
+  const fromCenter = Math.hypot(camera.position.x, camera.position.z);
+  const near = feet > -0.5 ? THREE.MathUtils.smoothstep(fromCenter, ISLAND_SAFE, ISLAND_EDGE) : 1;
+  const fall = THREE.MathUtils.clamp((-feet - 0.5) / (-FALL_RESPAWN - 0.5), 0, 1);
+  edgeVignette.style.opacity = near;
+  fallFade.style.opacity = fall;
+
+  if (near > 0.6 && fall === 0 && elapsed - lastEdgeHint > 20) {
+    lastEdgeHint = elapsed;
+    showHint('Careful: the island ends here');
+  }
+  if (feet < FALL_RESPAWN) {
+    player.respawn();
+    playCrossingEffect();
+    audio.play('respawn');
+    showHint('You fell into the void, and it sent you back');
+  }
+  return Math.max(near * 0.3, fall);
+};
+
+// footsteps: one every so many meters walked on the ground
+const lastPosition = new THREE.Vector3();
+let walked = 0;
+const updateFootsteps = () => {
+  const step = Math.hypot(camera.position.x - lastPosition.x, camera.position.z - lastPosition.z);
+  lastPosition.copy(camera.position);
+  if (!player.onGround || current || step > 1) return; // step > 1: teleported, e.g. respawned
+  walked += step;
+  if (walked > 0.75) {
+    walked = 0;
+    audio.play('footstep');
+  }
+};
 
 // --- post-processing: bloom ---
 // Everything brighter than the threshold (glowing crystals, gems, bright doorways, Creation's light)
@@ -764,6 +978,14 @@ renderer.setAnimationLoop(() => {
   physics.step(delta);
   updatePickups(delta, elapsed);
   updateArtifacts(delta, elapsed);
+  updateShards(elapsed);
+
+  // guidance, the edge, sound
+  updateGuidance();
+  const windAmount = updateEdge(elapsed);
+  updateFootsteps();
+  for (const world of worlds) world.hum.level = 1 + world.energy.value;
+  audio.update({ inside: Boolean(current), lights: placed, ending, windAmount });
 
   // every doorway keeps track of which side you're on, even the ones that don't matter right now
   let entered = null;
@@ -783,4 +1005,5 @@ renderer.setAnimationLoop(() => {
 
   render();
 });
+
 

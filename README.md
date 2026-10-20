@@ -25,6 +25,8 @@ Three lights were lost to the worlds beyond the arches. Bring them home.
 4. **Place it on the dais.** Each light has its own socket. Placing it wakes a stone ring that rises and hangs, tilted, above the dais (an `AnimationMixer` clip). The ruin brightens with every light.
 5. **The way home.** With all three home, a fourth archway rises out of the dais. Through it: Heartfelt's rain, full screen, and the credits.
 
+Along the way, a line at the top tells you the next step, and a marker points at where to go (the world's light, the doorway home, the socket), pinned to the edge of the screen when it's out of view.
+
 ## Controls
 
 - Click to enter (locks the mouse)
@@ -32,6 +34,7 @@ Three lights were lost to the worlds beyond the arches. Bring them home.
 - WASD / arrow keys: walk, Shift: run, Space: jump
 - Click / E: pick up, throw, turn a dial, place a light (look at it, the crosshair turns into a ring)
 - Walk through an archway to enter its world. Inside you're weightless: fly where you look, Space to rise, Shift to go faster. The archway leads back.
+- M: sound on / off
 - Esc: pause
 
 ## How it works
@@ -52,6 +55,22 @@ Walking through the doorway puts you inside the world: a big sphere follows you,
   - Star Nest: the fractal's "magic formula" parameter (0.53 original, 0.38 glowing nebula, 0.565 star cluster)
   - Seascape: time of day (noon, golden hour, dusk)
   - Creation: the size of the light
+
+## Breaking things
+
+Urns, crystals and stones shatter when they hit something hard enough: a sudden drop in speed between two frames. The pieces are small Rapier bodies that bounce around and shrink away, and the prop grows back at its place a few seconds later. Urns break easily (even dropped), stones only when thrown hard.
+
+## The edge
+
+Near the edge of the island the view darkens at its sides and the wind picks up. Fall off and the void closes in, then sends you back to the dais.
+
+## Sound
+
+All sound is made in code with the Web Audio API (`js/audio.js`), no sound files:
+
+- Music: a slow pad in A minor with bells on top. More bells with every light home, a brighter sound inside the worlds, and a resolving chord progression at the end
+- Every doorway hums in its world's pitch, from where the archway stands (Three.js `AudioListener` + `PositionalAudio`), louder when the world is energized
+- Effects: footsteps, landing, picking up, throwing, knocks and shattering (from where it happens), dial clicks, a chime when a world is tuned, doorway whooshes, bells and stone rumbling at the sockets, wind at the edge, rain at the end
 
 ## Lighting
 

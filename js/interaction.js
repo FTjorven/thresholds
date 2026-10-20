@@ -21,6 +21,7 @@ export const createInteraction = ({
   isAvailable,
   canThrow,
   onPickUp,
+  onThrow,
   onTurnDial,
   onPlace,
 }) => {
@@ -69,6 +70,7 @@ export const createInteraction = ({
     camera.getWorldDirection(forward);
     pickup.body.setLinvel({ x: forward.x * THROW_SPEED, y: forward.y * THROW_SPEED + 1.5, z: forward.z * THROW_SPEED }, true);
     pickup.body.setAngvel({ x: Math.random() * 6 - 3, y: Math.random() * 6 - 3, z: Math.random() * 6 - 3 }, true);
+    onThrow(pickup);
   };
 
   // a socket only takes its own light
@@ -110,7 +112,7 @@ export const createInteraction = ({
       return;
     }
     if (!target) setPrompt(null);
-    else if (target.type === 'dial') setPrompt(`Click · tune ${target.world.title.split(' ·')[0]}`);
+    else if (target.type === 'dial') setPrompt(`Click · tune ${target.world.title.split(' ·')[0]} · match the carving above the archway`);
     else setPrompt(`Click · pick up ${target.kind === 'artifact' ? `the ${target.label}` : target.kind}`);
   };
 

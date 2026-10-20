@@ -53,6 +53,7 @@ js/props.js           crystals, urns, stones, tuning dials around the archways
 js/interaction.js     crosshair raycast, prompt, pick up / hold / throw, turning dials
 js/ruin.js            placeholder ruin: floor, archways, pillars, floating rocks, isGround()
 js/artifacts.js       the three lights hidden in the worlds, the carvings that show each world's key
+js/audio.js           all sound, made in code (Web Audio): music, doorway hums, effects, wind, rain
 js/dais.js            sockets, rings, the final archway, and their AnimationClips (Awaken_1..3, Finale)
 js/shaders/<name>/fragment.wgsl    straight port (pixel ray)
 js/shaders/<name>/world.wgsl       world version (ray from the 3D scene), for starNest, seascape, creation

@@ -52,6 +52,12 @@ export const createPhysics = async () => {
     return body;
   };
 
+  // take a dynamic body out of the simulation (e.g. a shard that has faded away)
+  const remove = (body) => {
+    bodies.splice(bodies.findIndex((entry) => entry.body === body), 1);
+    world.removeRigidBody(body);
+  };
+
   // the player: a capsule that follows the camera, pushes props, but isn't pushed back
   const playerBody = world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased());
   world.createCollider(RAPIER.ColliderDesc.capsule(PLAYER_HALF_HEIGHT, PLAYER_RADIUS), playerBody);
@@ -80,5 +86,5 @@ export const createPhysics = async () => {
     }
   };
 
-  return { RAPIER, world, addStatic, addDynamic, setPlayer, step };
+  return { RAPIER, world, addStatic, addDynamic, remove, setPlayer, step };
 };
